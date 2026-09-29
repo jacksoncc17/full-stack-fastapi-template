@@ -17,12 +17,18 @@ error instead.
 """
 
 import hashlib
+import logging
 import secrets
 import uuid
+from pathlib import Path
 from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session, col, func, select
 
+from app import artifact_store
+
+logger = logging.getLogger(__name__)
+from app.core.config import settings
 from app.models_jobs import (
     TERMINAL_STATUSES,
     Artifact,
@@ -300,53 +306,93 @@ def store_artifact(
     filename: str,
     data: bytes,
     mime_type: str = "application/octet-stream",
-    storage_backend: str = "db",
-    storage_key: str | None = None,
 ) -> Artifact:
     """Attach one output file to a job. Idempotent per (job, kind).
 
-    Re-uploading the same kind replaces it, so a retried job that re-sends its
-    outputs does not violate the unique constraint or leave two mp4s.
+    Re-uploading the same kind replaces it, so a retried job does not violate the
+    unique constraint or leave two mp4s behind.
+
+    Replacement also has to clean up the copy it supersedes, including when the
+    configured backend changed between attempts. Without that, a job first stored in
+    the database and later re-uploaded to the volume would keep its bytes twice, and
+    the database copy would never be freed.
     """
     _load_for_worker(session=session, job_id=job_id, lease_token=lease_token)
 
+    store = artifact_store.backend_for(session, settings.ARTIFACT_DIR)
+    sha = artifact_store.digest(data)
     existing = session.exec(
         select(Artifact).where(Artifact.job_id == job_id, Artifact.kind == kind)
     ).first()
-    digest = hashlib.sha256(data).hexdigest()
 
-    if existing is not None:
-        existing.filename = filename
-        existing.mime_type = mime_type
-        existing.bytes = len(data)
-        existing.sha256 = digest
-        existing.storage_backend = storage_backend
-        existing.storage_key = storage_key
-        session.add(existing)
-        artifact = existing
-        blob = session.get(ArtifactBlob, existing.id)
-        if blob is None:
-            session.add(ArtifactBlob(artifact_id=existing.id, data=data))
-        else:
-            blob.data = data
-            session.add(blob)
-    else:
+    if existing is None:
         artifact = Artifact(
             job_id=job_id, kind=kind, filename=filename, mime_type=mime_type,
-            bytes=len(data), sha256=digest, storage_backend=storage_backend,
-            storage_key=storage_key,
+            bytes=len(data), sha256=sha, storage_backend=store.name,
         )
         session.add(artifact)
-        session.flush()  # need artifact.id for the blob
-        session.add(ArtifactBlob(artifact_id=artifact.id, data=data))
+        session.flush()                     # the key is derived from artifact.id
+        # write the bytes BEFORE committing the row, so a row is never visible
+        # pointing at bytes that do not exist yet
+        artifact.storage_key = store.put(artifact.id, data)
+        session.add(artifact)
+        session.commit()
+        session.refresh(artifact)
+        return artifact
+
+    old_backend, old_key = existing.storage_backend, existing.storage_key
+    key = store.put(existing.id, data)       # write first, then repoint the row
+
+    existing.filename = filename
+    existing.mime_type = mime_type
+    existing.bytes = len(data)
+    existing.sha256 = sha
+    existing.storage_backend = store.name
+    existing.storage_key = key
+    session.add(existing)
     session.commit()
-    session.refresh(artifact)
-    return artifact
+    session.refresh(existing)
+
+    if old_backend != store.name:
+        # The superseded copy must go, or a job re-uploaded after a storage change
+        # keeps its bytes twice.
+        #
+        # The db copy is always reachable, so it is always dropped. A volume copy is
+        # NOT: the row records a key relative to a root that is no longer configured,
+        # and that root is not recoverable from the row. Rather than guess a root --
+        # which would mean deleting a path derived from a relative key against
+        # something like "/" -- the file is left behind and this is logged.
+        #
+        # Practical consequence: switching ARTIFACT_DIR in either direction while
+        # jobs are mid-flight can orphan volume files. They are wasted disk, not
+        # corruption, and a deployment that settles on one backend never hits this.
+        if old_backend == "db":
+            artifact_store.DbBackend(session).delete(existing.id, old_key)
+            session.commit()
+        else:
+            logger.warning(
+                "artifact %s moved from volume to %s; the previous volume copy at "
+                "key %r is no longer reachable and was not deleted",
+                existing.id, store.name, old_key,
+            )
+    return existing
 
 
 def get_artifact_data(*, session: Session, artifact_id: uuid.UUID) -> bytes | None:
-    blob = session.get(ArtifactBlob, artifact_id)
-    return blob.data if blob else None
+    """Read artifact bytes from whichever backend holds them.
+
+    The backend is read from the row, not from configuration: an artifact written
+    before a storage change must still be downloadable, so the row is the source of
+    truth about where its bytes are.
+    """
+    art = session.get(Artifact, artifact_id)
+    if art is None:
+        return None
+    if art.storage_backend == "volume":
+        # the key is absolute, so this works regardless of the current ARTIFACT_DIR
+        root = Path(settings.ARTIFACT_DIR) if settings.ARTIFACT_DIR else Path("/")
+        return artifact_store.VolumeBackend(root).get(artifact_id, art.storage_key)
+    return artifact_store.DbBackend(session).get(artifact_id, art.storage_key)
 
 
 def list_artifacts(*, session: Session, job_id: uuid.UUID) -> list[Artifact]:

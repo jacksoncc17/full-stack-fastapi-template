@@ -154,10 +154,21 @@ Run it under `systemd` or `tmux` so it survives logout — see `worker.service`.
 
 * **The worker is the only thing that needs the LAN.** Because dispatch is
   pull-based, the worker can sit behind NAT indefinitely — it just polls.
-* **Postgres holds the artifacts** (in `artifactblob`). At roughly 15 MB per job
-  that is fine for hundreds of jobs, but budget disk and note that every database
-  backup carries every video. Moving blobs to Spaces/S3 is a one-function change —
-  `storage_backend` and `storage_key` columns are already in the schema.
+* **Artifact bytes go to the `app-artifacts` volume** (`ARTIFACT_DIR=/data/artifacts`
+  in `compose.yml`), not the database. Roughly 15 MB per job, so this keeps the
+  database and its backups small.
+  * It must be a **named volume**, not the container's `/tmp`. `/tmp` is destroyed
+    when the container is recreated, and it is not shared between the four uvicorn
+    worker processes — so an upload written by one process would 404 from another.
+  * `docker compose down -v` deletes it, along with every rendered video. The queue
+    and its metadata live in Postgres and would survive.
+  * Unset `ARTIFACT_DIR` to fall back to storing bytes in Postgres (`artifactblob`),
+    which is the default so that nothing changes unless you opt in. The backend in
+    use is recorded per artifact row, so switching either way does not break
+    downloads of older results.
+  * Moving on to Spaces/S3 later is one class in `artifact_store.py` — the
+    `storage_backend` / `storage_key` columns and the single read path are already
+    in place.
 * **Droplet sizing**: the broker is idle most of the time. If you move rendering to
   the cloud later you need the LAN dependencies solved first, and then a much
   larger machine.

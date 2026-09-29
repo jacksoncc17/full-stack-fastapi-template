@@ -579,3 +579,52 @@ silently stopped taking work — the queue looked stalled with no error in the A
 The worker kept retrying (it does not exit on 403), so the fix was to re-register
 and restart it. Any credential stored in the database dies with it, including API
 keys.
+
+## Where artifact bytes live (`artifact_store.py`)
+
+Two backends behind one interface, chosen by `ARTIFACT_DIR`:
+
+| `ARTIFACT_DIR` | backend | bytes go to |
+|---|---|---|
+| unset (default) | `db` | `artifactblob.data` (Postgres `bytea`) |
+| a directory | `volume` | that directory; the row keeps an absolute path |
+
+Defaulting to the database means nothing changes for an existing deployment or a
+test run. `compose.yml` sets `ARTIFACT_DIR=/data/artifacts` and mounts the
+`app-artifacts` named volume, so the compose deployments use the volume.
+
+**It must be a named volume, not the container's `/tmp`.** `/tmp` is destroyed when
+the container is recreated *and* is not shared between the four uvicorn worker
+processes, so an upload written by one process would 404 from another. That failure
+mode is intermittent, which is the worst kind.
+
+The backend is recorded **per artifact row**, and `get_artifact_data` reads the row
+rather than the configuration, so an artifact written before a storage change stays
+downloadable.
+
+Verified with `_verify_storage.py` against real Postgres — 25 checks covering both
+backends, replacement, and the failure cases below.
+
+### Three bugs this work surfaced
+
+**Relative keys broke downloads after a config change.** `storage_key` was stored
+relative to the configured root and rebuilt from the *current* configuration on
+read, so changing `ARTIFACT_DIR` silently 404'd every artifact written before the
+change — the row still looked valid. Keys are now **absolute**, and there is a
+regression test that writes under one root and reads under another.
+
+**A cleanup that could have deleted the wrong files.** Switching backends left the
+superseded copy behind. The first fix reconstructed the old root from the recorded
+key and deleted against it — which for a relative key meant deleting a path derived
+under `/`. That is a data-loss bug, not a leak. The honest behaviour is implemented
+instead: the db copy is always dropped (it is unambiguously addressable), a volume
+copy is **not** deleted because its root is no longer recoverable, and that is
+logged as a warning. Switching backends mid-flight can therefore orphan volume
+files — wasted disk, not corruption, and a deployment that settles on one backend
+never hits it.
+
+**Replacement wrote the row before the bytes.** The original order committed a
+`storage_key` and then wrote the file, leaving a window where a row pointed at bytes
+that did not exist yet. The volume backend now writes to a `.part` file in the same
+directory and `os.replace`s it (atomic within a filesystem), and the row is only
+updated afterwards.

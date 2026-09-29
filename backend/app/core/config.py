@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     def emails_enabled(self) -> bool:
         return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
 
+    # Where artifact BYTES live. Unset -> the artifactblob table (Postgres bytea).
+    # Set to a directory -> that directory, which should be a mounted volume.
+    #
+    # Defaulting to unset keeps every existing deployment and test unchanged; the
+    # volume is opt-in. Note this is NOT the container's /tmp: /tmp is destroyed
+    # when the container is recreated and is not shared between the uvicorn worker
+    # processes, both of which break downloads.
+    ARTIFACT_DIR: str | None = None
+
     EMAIL_TEST_USER: EmailStr = "test@example.com"
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str

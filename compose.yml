@@ -63,6 +63,12 @@ services:
       EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Variable not set}@db:5432/app
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Artifact bytes go to this mounted volume rather than the database. It must
+      # be a volume, not the container's /tmp: /tmp is destroyed when the container
+      # is recreated and is not shared between the uvicorn worker processes.
+      ARTIFACT_DIR: /data/artifacts
+    volumes:
+      - app-artifacts:/data/artifacts
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check/"]
@@ -86,3 +92,4 @@ services:
 
 volumes:
   app-db-data:
+  app-artifacts:

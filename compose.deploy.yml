@@ -48,6 +48,9 @@ services:
     restart: always
     environment:
       FRONTEND_HOST: https://${DOMAIN:?Variable not set}
+    volumes:
+      # keep artifact storage on a named volume so it survives `down` and recreation
+      - app-artifacts:/data/artifacts
     labels:
       # Route HTTPS traffic for this domain
       - traefik.http.routers.backend-https.rule=Host(`${DOMAIN:?Variable not set}`)
@@ -59,3 +62,6 @@ services:
 volumes:
   # Create a volume to store the certificates, even if the container is recreated
   traefik-certificates:
+  # Artifact bytes. Losing this loses every rendered video, though the queue and
+  # its metadata live in Postgres and would survive.
+  app-artifacts:
