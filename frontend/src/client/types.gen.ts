@@ -739,6 +739,101 @@ export type WorkerHeartbeat = {
     } | null;
 };
 
+/**
+ * WorkerPublic
+ *
+ * Worker as seen by an admin afterwards -- never includes the key.
+ */
+export type WorkerPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Capabilities
+     */
+    capabilities?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Last Heartbeat At
+     */
+    last_heartbeat_at?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * WorkerRegister
+ *
+ * Ask the broker to enrol a new processing node.
+ */
+export type WorkerRegister = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Capabilities
+     */
+    capabilities?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * WorkerRegistered
+ *
+ * Returned ONLY at registration.
+ *
+ * `api_key` is the plaintext key and this is the only time it is ever
+ * transmitted: the database stores a hash of it, exactly as it does for user
+ * passwords. If it is lost the worker must be re-registered -- there is no
+ * "show me the key again" endpoint, by design.
+ */
+export type WorkerRegistered = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * WorkersPublic
+ */
+export type WorkersPublic = {
+    /**
+     * Data
+     */
+    data: Array<WorkerPublic>;
+    /**
+     * Count
+     */
+    count: number;
+};
+
 export type loginLoginAccessTokenData = {
     body: Body_login_login_access_token;
     path?: never;
@@ -2011,6 +2106,121 @@ export type workerDownloadArtifactDataResponses = {
      */
     200: unknown;
 };
+
+export type adminReadWorkersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/workers/';
+};
+
+export type adminReadWorkersResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkersPublic;
+};
+
+export type adminReadWorkersResponse = adminReadWorkersResponses[keyof adminReadWorkersResponses];
+
+export type adminRegisterWorkerData = {
+    body: WorkerRegister;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/workers/';
+};
+
+export type adminRegisterWorkerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type adminRegisterWorkerError = adminRegisterWorkerErrors[keyof adminRegisterWorkerErrors];
+
+export type adminRegisterWorkerResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkerRegistered;
+};
+
+export type adminRegisterWorkerResponse = adminRegisterWorkerResponses[keyof adminRegisterWorkerResponses];
+
+export type adminSetActiveData = {
+    body?: never;
+    path: {
+        /**
+         * Worker Id
+         */
+        worker_id: string;
+    };
+    query: {
+        /**
+         * Active
+         */
+        active: boolean;
+    };
+    url: '/api/v1/admin/workers/{worker_id}/active';
+};
+
+export type adminSetActiveErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type adminSetActiveError = adminSetActiveErrors[keyof adminSetActiveErrors];
+
+export type adminSetActiveResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkerPublic;
+};
+
+export type adminSetActiveResponse = adminSetActiveResponses[keyof adminSetActiveResponses];
+
+export type adminWorkerJobsData = {
+    body?: never;
+    path: {
+        /**
+         * Worker Id
+         */
+        worker_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/workers/{worker_id}/jobs';
+};
+
+export type adminWorkerJobsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type adminWorkerJobsError = adminWorkerJobsErrors[keyof adminWorkerJobsErrors];
+
+export type adminWorkerJobsResponses = {
+    /**
+     * Response Admin-Worker Jobs
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type adminWorkerJobsResponse = adminWorkerJobsResponses[keyof adminWorkerJobsResponses];
 
 export type privateCreateUserData = {
     body: PrivateUserCreate;

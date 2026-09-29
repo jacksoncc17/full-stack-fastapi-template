@@ -273,3 +273,54 @@ Two things that cost time and are worth writing down:
   `path: { job_id }`, and `submitJobFile` takes the file in `body` with every other
   option in `query` — the route declares them as Form/Query, not a JSON body.
   `tsc` caught all of these.
+
+## Worker registration (admin)
+
+`api/routes/admin_workers.py` at `/api/v1/admin/workers`, gated on `is_superuser`.
+Registering a worker mints a credential that can claim and complete arbitrary jobs,
+so it deliberately is not something an ordinary user can do.
+
+| route | purpose |
+|---|---|
+| `POST /` | enrol a worker, returns its API key **once** |
+| `GET /` | list workers (never includes the key) |
+| `POST /{id}/active?active=` | enable/disable a worker |
+| `GET /{id}/jobs` | recent jobs claimed by a worker, for diagnosing a bad node |
+
+**The key is shown exactly once and never stored.** Only a SHA-256 digest goes into
+`worker.api_key_hash`, the same posture as a password hash. There is no endpoint to
+retrieve a key later, by design.
+
+**Re-registering an existing name rotates the key** rather than failing, because a
+lost key is the usual reason to come back. The worker keeps its `id`, so jobs it
+processed stay attributable.
+
+**Disabling does not abort the job a worker is holding.** The lease has to expire
+before anyone else may take it, which is what stops a second worker racing a node
+that is still writing.
+
+### Verified (each step against the running API)
+
+| check | result |
+|---|---|
+| issued key authenticates | **200** |
+| bogus key | **403** |
+| no `X-Worker-Key` header | **401** |
+| plaintext key present in the DB | **0 rows** |
+| rotation: new key works, old key stops | 200 / 403 |
+| rotation keeps the same worker id | yes |
+| disabled worker's key | **403**, re-enable restores 200 |
+| unauthenticated registration attempt | **401** |
+
+`WorkerRegistered` returns `api_key`; `WorkerPublic` deliberately does not, so the
+list endpoint cannot leak it.
+
+### A real bug this found
+
+`OAuthAccount` was declared *before* `User` while holding a `Relationship` to it.
+Python 3.14's deferred annotations let the module import, but SQLAlchemy resolves
+relationship targets at mapper-configuration time and failed with
+`expression 'User | None' failed to locate a name`. That surfaced as a **500 on any
+query that configured mappers** — including the worker auth lookup, so a bogus key
+returned 500 instead of 403. `OAuthAccount` is now defined after `User`, and there
+is a comment saying why the order matters.

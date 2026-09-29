@@ -48,29 +48,6 @@ class UpdatePassword(SQLModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
-class OAuthAccount(SQLModel, table=True):
-    """Links a local user to an external identity provider.
-
-    Kept separate from User so one user can hold several providers later, and so
-    the (provider, provider_account_id) pair can be unique on its own -- the
-    lookup that matters when a callback arrives is "who owns this Google sub?",
-    and it must be a single indexed hit.
-    """
-
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    provider: str = Field(max_length=32, index=True)
-    provider_account_id: str = Field(max_length=255, index=True)
-    email: EmailStr | None = Field(default=None, max_length=255)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
-    )
-    user_id: uuid.UUID = Field(
-        foreign_key="user.id", nullable=False, ondelete="CASCADE"
-    )
-    user: User | None = Relationship(back_populates="oauth_accounts")
-
-
 # Database model, database table inferred from class name
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -95,6 +72,33 @@ class UserPublic(UserBase):
 class UsersPublic(SQLModel):
     data: list[UserPublic]
     count: int
+
+
+# Defined AFTER User: OAuthAccount carries a Relationship to User, and SQLAlchemy
+# resolves relationship targets at mapper-configuration time. Declaring it first
+# left the mapper unable to resolve 'User | None', which surfaced later as a 500
+# on any query that configured mappers -- including the worker auth lookup.
+class OAuthAccount(SQLModel, table=True):
+    """Links a local user to an external identity provider.
+
+    Kept separate from User so one user can hold several providers later, and so
+    the (provider, provider_account_id) pair can be unique on its own -- the
+    lookup that matters when a callback arrives is "who owns this Google sub?",
+    and it must be a single indexed hit.
+    """
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    provider: str = Field(max_length=32, index=True)
+    provider_account_id: str = Field(max_length=255, index=True)
+    email: EmailStr | None = Field(default=None, max_length=255)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
+    user: User | None = Relationship(back_populates="oauth_accounts")
 
 
 # Shared properties

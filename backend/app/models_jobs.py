@@ -337,3 +337,44 @@ class JobComplete(SQLModel):
 
 class WorkerHeartbeat(SQLModel):
     capabilities: dict | None = None
+
+
+# ---- admin-facing payloads --------------------------------------------------
+
+
+class WorkerRegister(SQLModel):
+    """Ask the broker to enrol a new processing node."""
+
+    name: str = Field(min_length=1, max_length=128)
+    capabilities: dict | None = None
+
+
+class WorkerRegistered(SQLModel):
+    """Returned ONLY at registration.
+
+    `api_key` is the plaintext key and this is the only time it is ever
+    transmitted: the database stores a hash of it, exactly as it does for user
+    passwords. If it is lost the worker must be re-registered -- there is no
+    "show me the key again" endpoint, by design.
+    """
+
+    id: uuid.UUID
+    name: str
+    api_key: str
+    created_at: datetime | None = None
+
+
+class WorkerPublic(SQLModel):
+    """Worker as seen by an admin afterwards -- never includes the key."""
+
+    id: uuid.UUID
+    name: str
+    capabilities: dict | None = None
+    is_active: bool
+    last_heartbeat_at: datetime | None = None
+    created_at: datetime | None = None
+
+
+class WorkersPublic(SQLModel):
+    data: list[WorkerPublic]
+    count: int

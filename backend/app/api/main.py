@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin_workers,
     google_auth,
     items,
     jobs,
@@ -20,6 +21,7 @@ api_router.include_router(utils.router)
 api_router.include_router(items.router)
 api_router.include_router(jobs.router)
 api_router.include_router(worker.router)
+api_router.include_router(admin_workers.router)
 
 
 if settings.FASTAPI_ENV == "development":

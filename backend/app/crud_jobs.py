@@ -17,6 +17,7 @@ error instead.
 """
 
 import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -71,6 +72,54 @@ def touch_worker(
     worker.last_heartbeat_at = get_datetime_utc()
     if capabilities is not None:
         worker.capabilities = capabilities
+    session.add(worker)
+    session.commit()
+    session.refresh(worker)
+    return worker
+
+
+def register_worker(
+    *, session: Session, name: str, capabilities: dict | None = None
+) -> tuple[Worker, str]:
+    """Enrol a worker and return (worker, plaintext_api_key).
+
+    The plaintext key is returned exactly once and never stored: only its SHA-256
+    digest goes in the database, the same posture as a password hash. That is why
+    there is no endpoint to retrieve a key later -- losing it means re-registering.
+
+    Re-registering an existing name ROTATES the key rather than failing, because a
+    lost key is the common reason to come back here. The worker row keeps its id so
+    historical jobs still point at the right node.
+    """
+    api_key = secrets.token_urlsafe(32)
+    digest = hash_api_key(api_key)
+
+    worker = session.exec(select(Worker).where(Worker.name == name)).first()
+    if worker is None:
+        worker = Worker(name=name, api_key_hash=digest, capabilities=capabilities)
+    else:
+        worker.api_key_hash = digest          # rotate
+        worker.is_active = True
+        if capabilities is not None:
+            worker.capabilities = capabilities
+    session.add(worker)
+    session.commit()
+    session.refresh(worker)
+    return worker, api_key
+
+
+def list_workers(*, session: Session) -> list[Worker]:
+    return list(session.exec(select(Worker).order_by(col(Worker.name))).all())
+
+
+def set_worker_active(*, session: Session, worker: Worker, active: bool) -> Worker:
+    """Enable/disable a worker.
+
+    Disabling does not touch its in-flight job: the lease still has to expire
+    before another worker may take over, which is what keeps a disabled-but-busy
+    node from being raced.
+    """
+    worker.is_active = active
     session.add(worker)
     session.commit()
     session.refresh(worker)
