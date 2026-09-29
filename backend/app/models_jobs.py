@@ -287,6 +287,49 @@ ARTIFACT_KINDS = (
 )
 
 
+class JobInput(SQLModel, table=True):
+    """An input file submitted with a job.
+
+    SGF records are small enough to live inline in `job.sgf_text`, which is why that
+    column exists. A generic service may need a file -- a PDF, an image, whatever --
+    and inlining bytes in the job row would bloat every status query. So inputs are
+    separate rows with the bytes in `JobInputBlob`, mirroring how artifacts are
+    stored, and the worker fetches them by name.
+
+    `name` is the field name from the service's param_schema, so a service can accept
+    several distinct files without the broker understanding any of them.
+    """
+
+    __table_args__ = (UniqueConstraint("job_id", "name", name="uq_jobinput_job_name"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    job_id: uuid.UUID = Field(
+        foreign_key="job.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    name: str = Field(max_length=64)
+    filename: str = Field(max_length=255)
+    mime_type: str = Field(default="application/octet-stream", max_length=128)
+    bytes: int = Field(default=0)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class JobInputBlob(SQLModel, table=True):
+    input_id: uuid.UUID = Field(
+        foreign_key="jobinput.id", primary_key=True, ondelete="CASCADE"
+    )
+    data: bytes = Field(sa_column=Column(LargeBinary))
+
+
+class JobInputPublic(SQLModel):
+    name: str
+    filename: str
+    bytes: int
+    mime_type: str
+
+
 class Artifact(SQLModel, table=True):
     """Metadata for one output file. Deliberately excludes the bytes."""
 
@@ -393,6 +436,8 @@ class JobClaimed(SQLModel):
     # `payload` is the general input; for the SGF service it is the game record. The
     # legacy sgf_* fields remain so an older worker keeps working.
     payload: str | None = None
+    # names of the input files the worker should fetch; the bytes are not inlined
+    inputs: list[str] | None = None
     sgf_text: str = ""
     sgf_name: str = "input.txt"
     title: str | None = None

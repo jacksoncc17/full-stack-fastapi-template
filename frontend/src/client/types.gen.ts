@@ -55,6 +55,28 @@ export type Body_jobs_submit_job_file = {
 };
 
 /**
+ * Body_jobs-submit_job_generic
+ */
+export type Body_jobs_submit_job_generic = {
+    /**
+     * Service
+     */
+    service?: string;
+    /**
+     * Params
+     */
+    params?: string;
+    /**
+     * Files
+     */
+    files?: Array<Blob | File>;
+    /**
+     * File Field
+     */
+    file_field?: string;
+};
+
+/**
  * Body_login-login_access_token
  */
 export type Body_login_login_access_token = {
@@ -241,13 +263,31 @@ export type JobClaimed = {
      */
     attempts: number;
     /**
+     * Service
+     */
+    service?: string;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Payload
+     */
+    payload?: string | null;
+    /**
+     * Inputs
+     */
+    inputs?: Array<string> | null;
+    /**
      * Sgf Text
      */
-    sgf_text: string;
+    sgf_text?: string;
     /**
      * Sgf Name
      */
-    sgf_name: string;
+    sgf_name?: string;
     /**
      * Title
      */
@@ -303,9 +343,30 @@ export type JobComplete = {
 /**
  * JobCreate
  *
- * What a client submits. `sgf_text` is validated by the route.
+ * What a client submits.
+ *
+ * Two ways to fill this in, and they coexist on purpose:
+ *
+ * * **new services** set `service` and put everything the service needs in
+ * `params`, which is validated against that service's published schema
+ * * **the existing SGF-video client** omits `service`, sets the legacy fields
+ * below, and the route derives `params` from them
+ *
+ * The second path is why the legacy fields were not deleted: it keeps the current
+ * API, the generated TypeScript client and the existing submit form working
+ * without a breaking change.
  */
 export type JobCreate = {
+    /**
+     * Service
+     */
+    service?: string;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Sgf Text
      */
@@ -375,6 +436,28 @@ export type JobEventPublic = {
 };
 
 /**
+ * JobInputPublic
+ */
+export type JobInputPublic = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Bytes
+     */
+    bytes: number;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+};
+
+/**
  * JobProgress
  */
 export type JobProgress = {
@@ -396,6 +479,20 @@ export type JobProgress = {
  * JobPublic
  */
 export type JobPublic = {
+    /**
+     * Service
+     */
+    service?: string;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Service Version
+     */
+    service_version?: string | null;
     /**
      * Title
      */
@@ -541,6 +638,94 @@ export type PrivateUserCreate = {
      * Is Verified
      */
     is_verified?: boolean;
+};
+
+/**
+ * ServicePublic
+ */
+export type ServicePublic = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Param Schema
+     */
+    param_schema?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Artifact Kinds
+     */
+    artifact_kinds?: Array<unknown> | null;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+};
+
+/**
+ * ServicePublish
+ *
+ * A worker announcing the service it runs.
+ *
+ * `param_schema` is JSON Schema. The broker validates submissions against it and
+ * the frontend renders a form from it, so it is the single place a service
+ * describes its own parameters.
+ */
+export type ServicePublish = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Param Schema
+     */
+    param_schema?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Artifact Kinds
+     */
+    artifact_kinds?: Array<string> | null;
+    /**
+     * Version
+     */
+    version?: string;
+};
+
+/**
+ * ServicesPublic
+ */
+export type ServicesPublic = {
+    /**
+     * Data
+     */
+    data: Array<ServicePublic>;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -1550,10 +1735,71 @@ export type jobsSubmitJobResponses = {
 
 export type jobsSubmitJobResponse = jobsSubmitJobResponses[keyof jobsSubmitJobResponses];
 
+export type jobsSubmitJobGenericData = {
+    body?: Body_jobs_submit_job_generic;
+    path?: never;
+    query?: never;
+    url: '/api/v1/jobs/submit';
+};
+
+export type jobsSubmitJobGenericErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsSubmitJobGenericError = jobsSubmitJobGenericErrors[keyof jobsSubmitJobGenericErrors];
+
+export type jobsSubmitJobGenericResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobPublic;
+};
+
+export type jobsSubmitJobGenericResponse = jobsSubmitJobGenericResponses[keyof jobsSubmitJobGenericResponses];
+
+export type jobsReadJobInputsData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/jobs/{job_id}/inputs';
+};
+
+export type jobsReadJobInputsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsReadJobInputsError = jobsReadJobInputsErrors[keyof jobsReadJobInputsErrors];
+
+export type jobsReadJobInputsResponses = {
+    /**
+     * Response Jobs-Read Job Inputs
+     *
+     * Successful Response
+     */
+    200: Array<JobInputPublic>;
+};
+
+export type jobsReadJobInputsResponse = jobsReadJobInputsResponses[keyof jobsReadJobInputsResponses];
+
 export type jobsSubmitJobFileData = {
     body: Body_jobs_submit_job_file;
     path?: never;
     query?: {
+        /**
+         * Service
+         */
+        service?: string;
         /**
          * Title
          */
@@ -1607,6 +1853,22 @@ export type jobsSubmitJobFileResponses = {
 };
 
 export type jobsSubmitJobFileResponse = jobsSubmitJobFileResponses[keyof jobsSubmitJobFileResponses];
+
+export type jobsReadServicesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/jobs/services';
+};
+
+export type jobsReadServicesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ServicesPublic;
+};
+
+export type jobsReadServicesResponse = jobsReadServicesResponses[keyof jobsReadServicesResponses];
 
 export type jobsWorkersStatusData = {
     body?: never;
@@ -2055,6 +2317,76 @@ export type workerCompleteResponses = {
 
 export type workerCompleteResponse = workerCompleteResponses[keyof workerCompleteResponses];
 
+export type workerMyServiceData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/worker/services';
+};
+
+export type workerMyServiceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerMyServiceError = workerMyServiceErrors[keyof workerMyServiceErrors];
+
+export type workerMyServiceResponses = {
+    /**
+     * Response Worker-My Service
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type workerMyServiceResponse = workerMyServiceResponses[keyof workerMyServiceResponses];
+
+export type workerPublishServiceData = {
+    body: ServicePublish;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/worker/services';
+};
+
+export type workerPublishServiceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerPublishServiceError = workerPublishServiceErrors[keyof workerPublishServiceErrors];
+
+export type workerPublishServiceResponses = {
+    /**
+     * Response Worker-Publish Service
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type workerPublishServiceResponse = workerPublishServiceResponses[keyof workerPublishServiceResponses];
+
 export type workerHeartbeatData = {
     /**
      * Body
@@ -2092,6 +2424,82 @@ export type workerHeartbeatResponses = {
 };
 
 export type workerHeartbeatResponse = workerHeartbeatResponses[keyof workerHeartbeatResponses];
+
+export type workerListJobInputsData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/jobs/{job_id}/inputs';
+};
+
+export type workerListJobInputsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerListJobInputsError = workerListJobInputsErrors[keyof workerListJobInputsErrors];
+
+export type workerListJobInputsResponses = {
+    /**
+     * Response Worker-List Job Inputs
+     *
+     * Successful Response
+     */
+    200: Array<JobInputPublic>;
+};
+
+export type workerListJobInputsResponse = workerListJobInputsResponses[keyof workerListJobInputsResponses];
+
+export type workerDownloadJobInputData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+        /**
+         * Name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/jobs/{job_id}/inputs/{name}/data';
+};
+
+export type workerDownloadJobInputErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerDownloadJobInputError = workerDownloadJobInputErrors[keyof workerDownloadJobInputErrors];
+
+export type workerDownloadJobInputResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type workerDownloadArtifactDataData = {
     body?: never;

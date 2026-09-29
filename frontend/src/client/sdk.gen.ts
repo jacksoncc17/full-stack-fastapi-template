@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { adminReadWorkersData, adminReadWorkersDetailData, adminReadWorkersDetailResponses, adminReadWorkersResponses, adminRegisterWorkerData, adminRegisterWorkerErrors, adminRegisterWorkerResponses, adminSetActiveData, adminSetActiveErrors, adminSetActiveResponses, adminWorkerJobsData, adminWorkerJobsErrors, adminWorkerJobsResponses, itemsCreateItemData, itemsCreateItemErrors, itemsCreateItemResponses, itemsDeleteItemData, itemsDeleteItemErrors, itemsDeleteItemResponses, itemsReadItemData, itemsReadItemErrors, itemsReadItemResponses, itemsReadItemsData, itemsReadItemsErrors, itemsReadItemsResponses, itemsUpdateItemData, itemsUpdateItemErrors, itemsUpdateItemResponses, jobsCancelJobData, jobsCancelJobErrors, jobsCancelJobResponses, jobsDownloadArtifactData, jobsDownloadArtifactErrors, jobsDownloadArtifactResponses, jobsJobsSummaryData, jobsJobsSummaryResponses, jobsReadJobArtifactsData, jobsReadJobArtifactsErrors, jobsReadJobArtifactsResponses, jobsReadJobData, jobsReadJobErrors, jobsReadJobEventsData, jobsReadJobEventsErrors, jobsReadJobEventsResponses, jobsReadJobResponses, jobsReadJobsData, jobsReadJobsErrors, jobsReadJobsResponses, jobsReapData, jobsReapResponses, jobsSubmitJobData, jobsSubmitJobErrors, jobsSubmitJobFileData, jobsSubmitJobFileErrors, jobsSubmitJobFileResponses, jobsSubmitJobResponses, jobsWorkersStatusData, jobsWorkersStatusResponses, loginGoogleCallbackData, loginGoogleCallbackErrors, loginGoogleCallbackResponses, loginGoogleLoginData, loginGoogleLoginResponses, loginGoogleStatusData, loginGoogleStatusResponses, loginLoginAccessTokenData, loginLoginAccessTokenErrors, loginLoginAccessTokenResponses, loginRecoverPasswordData, loginRecoverPasswordErrors, loginRecoverPasswordHtmlContentData, loginRecoverPasswordHtmlContentErrors, loginRecoverPasswordHtmlContentResponses, loginRecoverPasswordResponses, loginResetPasswordData, loginResetPasswordErrors, loginResetPasswordResponses, loginTestTokenData, loginTestTokenResponses, privateCreateUserData, privateCreateUserErrors, privateCreateUserResponses, usersCreateUserData, usersCreateUserErrors, usersCreateUserResponses, usersDeleteUserData, usersDeleteUserErrors, usersDeleteUserMeData, usersDeleteUserMeResponses, usersDeleteUserResponses, usersReadUserByIdData, usersReadUserByIdErrors, usersReadUserByIdResponses, usersReadUserMeData, usersReadUserMeResponses, usersReadUsersData, usersReadUsersErrors, usersReadUsersResponses, usersRegisterUserData, usersRegisterUserErrors, usersRegisterUserResponses, usersUpdatePasswordMeData, usersUpdatePasswordMeErrors, usersUpdatePasswordMeResponses, usersUpdateUserData, usersUpdateUserErrors, usersUpdateUserMeData, usersUpdateUserMeErrors, usersUpdateUserMeResponses, usersUpdateUserResponses, utilsHealthCheckData, utilsHealthCheckResponses, utilsTestEmailData, utilsTestEmailErrors, utilsTestEmailResponses, workerClaimData, workerClaimErrors, workerClaimResponses, workerCompleteData, workerCompleteErrors, workerCompleteResponses, workerDownloadArtifactDataData, workerDownloadArtifactDataErrors, workerDownloadArtifactDataResponses, workerHeartbeatData, workerHeartbeatErrors, workerHeartbeatResponses, workerListJobArtifactsData, workerListJobArtifactsErrors, workerListJobArtifactsResponses, workerProgressData, workerProgressErrors, workerProgressResponses, workerRenewData, workerRenewErrors, workerRenewResponses, workerUploadArtifactData, workerUploadArtifactErrors, workerUploadArtifactResponses } from './types.gen';
+import type { adminReadWorkersData, adminReadWorkersDetailData, adminReadWorkersDetailResponses, adminReadWorkersResponses, adminRegisterWorkerData, adminRegisterWorkerErrors, adminRegisterWorkerResponses, adminSetActiveData, adminSetActiveErrors, adminSetActiveResponses, adminWorkerJobsData, adminWorkerJobsErrors, adminWorkerJobsResponses, itemsCreateItemData, itemsCreateItemErrors, itemsCreateItemResponses, itemsDeleteItemData, itemsDeleteItemErrors, itemsDeleteItemResponses, itemsReadItemData, itemsReadItemErrors, itemsReadItemResponses, itemsReadItemsData, itemsReadItemsErrors, itemsReadItemsResponses, itemsUpdateItemData, itemsUpdateItemErrors, itemsUpdateItemResponses, jobsCancelJobData, jobsCancelJobErrors, jobsCancelJobResponses, jobsDownloadArtifactData, jobsDownloadArtifactErrors, jobsDownloadArtifactResponses, jobsJobsSummaryData, jobsJobsSummaryResponses, jobsReadJobArtifactsData, jobsReadJobArtifactsErrors, jobsReadJobArtifactsResponses, jobsReadJobData, jobsReadJobErrors, jobsReadJobEventsData, jobsReadJobEventsErrors, jobsReadJobEventsResponses, jobsReadJobInputsData, jobsReadJobInputsErrors, jobsReadJobInputsResponses, jobsReadJobResponses, jobsReadJobsData, jobsReadJobsErrors, jobsReadJobsResponses, jobsReadServicesData, jobsReadServicesResponses, jobsReapData, jobsReapResponses, jobsSubmitJobData, jobsSubmitJobErrors, jobsSubmitJobFileData, jobsSubmitJobFileErrors, jobsSubmitJobFileResponses, jobsSubmitJobGenericData, jobsSubmitJobGenericErrors, jobsSubmitJobGenericResponses, jobsSubmitJobResponses, jobsWorkersStatusData, jobsWorkersStatusResponses, loginGoogleCallbackData, loginGoogleCallbackErrors, loginGoogleCallbackResponses, loginGoogleLoginData, loginGoogleLoginResponses, loginGoogleStatusData, loginGoogleStatusResponses, loginLoginAccessTokenData, loginLoginAccessTokenErrors, loginLoginAccessTokenResponses, loginRecoverPasswordData, loginRecoverPasswordErrors, loginRecoverPasswordHtmlContentData, loginRecoverPasswordHtmlContentErrors, loginRecoverPasswordHtmlContentResponses, loginRecoverPasswordResponses, loginResetPasswordData, loginResetPasswordErrors, loginResetPasswordResponses, loginTestTokenData, loginTestTokenResponses, privateCreateUserData, privateCreateUserErrors, privateCreateUserResponses, usersCreateUserData, usersCreateUserErrors, usersCreateUserResponses, usersDeleteUserData, usersDeleteUserErrors, usersDeleteUserMeData, usersDeleteUserMeResponses, usersDeleteUserResponses, usersReadUserByIdData, usersReadUserByIdErrors, usersReadUserByIdResponses, usersReadUserMeData, usersReadUserMeResponses, usersReadUsersData, usersReadUsersErrors, usersReadUsersResponses, usersRegisterUserData, usersRegisterUserErrors, usersRegisterUserResponses, usersUpdatePasswordMeData, usersUpdatePasswordMeErrors, usersUpdatePasswordMeResponses, usersUpdateUserData, usersUpdateUserErrors, usersUpdateUserMeData, usersUpdateUserMeErrors, usersUpdateUserMeResponses, usersUpdateUserResponses, utilsHealthCheckData, utilsHealthCheckResponses, utilsTestEmailData, utilsTestEmailErrors, utilsTestEmailResponses, workerClaimData, workerClaimErrors, workerClaimResponses, workerCompleteData, workerCompleteErrors, workerCompleteResponses, workerDownloadArtifactDataData, workerDownloadArtifactDataErrors, workerDownloadArtifactDataResponses, workerDownloadJobInputData, workerDownloadJobInputErrors, workerDownloadJobInputResponses, workerHeartbeatData, workerHeartbeatErrors, workerHeartbeatResponses, workerListJobArtifactsData, workerListJobArtifactsErrors, workerListJobArtifactsResponses, workerListJobInputsData, workerListJobInputsErrors, workerListJobInputsResponses, workerMyServiceData, workerMyServiceErrors, workerMyServiceResponses, workerProgressData, workerProgressErrors, workerProgressResponses, workerPublishServiceData, workerPublishServiceErrors, workerPublishServiceResponses, workerRenewData, workerRenewErrors, workerRenewResponses, workerUploadArtifactData, workerUploadArtifactErrors, workerUploadArtifactResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -421,7 +421,7 @@ export class JobsService {
     /**
      * Submit Job
      *
-     * Queue a new render request.
+     * Queue a new job.
      */
     public static submitJob<ThrowOnError extends boolean = true>(options: Options<jobsSubmitJobData, ThrowOnError>) {
         return (options.client ?? client).post<jobsSubmitJobResponses, jobsSubmitJobErrors, ThrowOnError>({
@@ -433,6 +433,46 @@ export class JobsService {
                 'Content-Type': 'application/json',
                 ...options.headers
             }
+        });
+    }
+    
+    /**
+     * Submit Job Generic
+     *
+     * Submit a job with optional input files.
+     *
+     * One route for every service: `service` names the service, `params` is its
+     * parameter JSON (validated against the service's published schema), and `files`
+     * are the inputs. This is what lets the frontend render any service's form without
+     * knowing anything about it -- the SGF-specific `/upload` route only exists for the
+     * legacy client.
+     *
+     * Files are stored per job and fetched by the worker, rather than inlined in the
+     * job row, so a large input does not slow down every status query.
+     */
+    public static submitJobGeneric<ThrowOnError extends boolean = true>(options?: Options<jobsSubmitJobGenericData, ThrowOnError>) {
+        return (options?.client ?? client).post<jobsSubmitJobGenericResponses, jobsSubmitJobGenericErrors, ThrowOnError>({
+            ...formDataBodySerializer,
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/jobs/submit',
+            ...options,
+            headers: {
+                'Content-Type': null,
+                ...options?.headers
+            }
+        });
+    }
+    
+    /**
+     * Read Job Inputs
+     */
+    public static readJobInputs<ThrowOnError extends boolean = true>(options: Options<jobsReadJobInputsData, ThrowOnError>) {
+        return (options.client ?? client).get<jobsReadJobInputsResponses, jobsReadJobInputsErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/jobs/{job_id}/inputs',
+            ...options
         });
     }
     
@@ -452,6 +492,25 @@ export class JobsService {
                 'Content-Type': null,
                 ...options.headers
             }
+        });
+    }
+    
+    /**
+     * Read Services
+     *
+     * Services a job can be submitted to.
+     *
+     * Services appear here once a worker has published them, so an empty list means no
+     * worker is connected -- which is the same condition the dashboard flags as
+     * "stalled", and worth showing on a submission form (do not offer a service whose
+     * worker does not exist).
+     */
+    public static readServices<ThrowOnError extends boolean = true>(options?: Options<jobsReadServicesData, ThrowOnError>) {
+        return (options?.client ?? client).get<jobsReadServicesResponses, unknown, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/jobs/services',
+            ...options
         });
     }
     
@@ -670,6 +729,41 @@ export class WorkerService {
     }
     
     /**
+     * My Service
+     *
+     * What this worker is bound to -- useful when a worker behaves unexpectedly.
+     */
+    public static myService<ThrowOnError extends boolean = true>(options?: Options<workerMyServiceData, ThrowOnError>) {
+        return (options?.client ?? client).get<workerMyServiceResponses, workerMyServiceErrors, ThrowOnError>({
+            responseType: 'json',
+            url: '/api/v1/worker/services',
+            ...options
+        });
+    }
+    
+    /**
+     * Publish Service
+     *
+     * Publish the contract of the service this worker runs, and bind to it.
+     *
+     * Called by a worker at startup. The broker stores the contract for validation and
+     * for the frontend form, but never runs the service -- the implementation lives in
+     * the worker. Binding the worker at the same time is what makes routing work: a
+     * worker claims only jobs for the service it announced.
+     */
+    public static publishService<ThrowOnError extends boolean = true>(options: Options<workerPublishServiceData, ThrowOnError>) {
+        return (options.client ?? client).post<workerPublishServiceResponses, workerPublishServiceErrors, ThrowOnError>({
+            responseType: 'json',
+            url: '/api/v1/worker/services',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
      * Heartbeat
      */
     public static heartbeat<ThrowOnError extends boolean = true>(options?: Options<workerHeartbeatData, ThrowOnError>) {
@@ -681,6 +775,31 @@ export class WorkerService {
                 'Content-Type': 'application/json',
                 ...options?.headers
             }
+        });
+    }
+    
+    /**
+     * List Job Inputs
+     *
+     * Input files for a claimed job -- metadata only, so a worker can decide what to
+     * fetch (and skip re-fetching an input it already has from a retry).
+     */
+    public static listJobInputs<ThrowOnError extends boolean = true>(options: Options<workerListJobInputsData, ThrowOnError>) {
+        return (options.client ?? client).get<workerListJobInputsResponses, workerListJobInputsErrors, ThrowOnError>({
+            responseType: 'json',
+            url: '/api/v1/worker/jobs/{job_id}/inputs',
+            ...options
+        });
+    }
+    
+    /**
+     * Download Job Input
+     */
+    public static downloadJobInput<ThrowOnError extends boolean = true>(options: Options<workerDownloadJobInputData, ThrowOnError>) {
+        return (options.client ?? client).get<workerDownloadJobInputResponses, workerDownloadJobInputErrors, ThrowOnError>({
+            responseType: 'json',
+            url: '/api/v1/worker/jobs/{job_id}/inputs/{name}/data',
+            ...options
         });
     }
     

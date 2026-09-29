@@ -7,10 +7,18 @@ job -- that is worker territory.
 """
 
 import hashlib
+import json
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 from fastapi.responses import Response
 from sqlmodel import col, func, select
 
@@ -19,6 +27,9 @@ from app import param_schema
 from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
 from app.models_jobs import (
     DEFAULT_SERVICE,
+    JobInput,
+    JobInputBlob,
+    JobInputPublic,
     Service,
     Artifact,
     ArtifactPublic,
@@ -154,6 +165,102 @@ def submit_job(
     )
     session.commit()
     return JobPublic.model_validate(job)
+
+
+@router.post("/submit", response_model=JobPublic)
+async def submit_job_generic(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    service: str = Form(default=DEFAULT_SERVICE),
+    params: str = Form(default="{}"),
+    files: list[UploadFile] = File(default=[]),
+    file_field: str = Form(default="sgf"),
+) -> Any:
+    """Submit a job with optional input files.
+
+    One route for every service: `service` names the service, `params` is its
+    parameter JSON (validated against the service's published schema), and `files`
+    are the inputs. This is what lets the frontend render any service's form without
+    knowing anything about it -- the SGF-specific `/upload` route only exists for the
+    legacy client.
+
+    Files are stored per job and fetched by the worker, rather than inlined in the
+    job row, so a large input does not slow down every status query.
+    """
+    try:
+        parsed = json.loads(params or "{}")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=422, detail=f"params is not valid JSON: {e}")
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=422, detail="params must be a JSON object")
+
+    # Files are NOT part of the params JSON (the frontend strips them out, because
+    # they travel as multipart parts). But a service declares its file field inside
+    # param_schema, so if that field is required, validating the raw params would
+    # always fail with "missing required property".
+    #
+    # So the uploaded filenames are injected into params before validation: the
+    # values arriving over the wire are satisfied by the parts that arrived with
+    # them. The worker still fetches the bytes by name separately.
+    if files and file_field:
+        existing = parsed.get(file_field)
+        names = [f.filename or "input" for f in files]
+        # an array field (format: files) takes all of them; a scalar takes the first
+        parsed[file_field] = (existing or []) + names if isinstance(existing, list) \
+            else names
+
+    # SGF validation is a property of the SGF service, not of submission
+    sgf_text = ""
+    if service == DEFAULT_SERVICE:
+        for f in files:
+            body = (await f.read()).decode("utf-8", errors="replace")
+            sgf_text = sgf_text or body
+            await f.seek(0)
+        _validate_sgf(sgf_text)
+
+    job_in = JobCreate(service=service, params=parsed, sgf_text=sgf_text,
+                       sgf_name=(files[0].filename if files else "input.txt") or "input.txt")
+    job = submit_job(session=session, current_user=current_user, job_in=job_in)
+
+    for f in files:
+        data = await f.read()
+        _store_input(session=session, job_id=job.id, name=file_field,
+                     filename=f.filename or "input", data=data,
+                     mime_type=f.content_type or "application/octet-stream")
+    return job
+
+
+def _store_input(*, session: Session, job_id: uuid.UUID, name: str,
+                 filename: str, data: bytes, mime_type: str) -> None:
+    existing = session.exec(
+        select(JobInput).where(JobInput.job_id == job_id, JobInput.name == name)
+    ).first()
+    if existing is not None:
+        existing.filename, existing.bytes = filename, len(data)
+        existing.mime_type = mime_type
+        session.add(existing)
+        blob = session.get(JobInputBlob, existing.id)
+        if blob is None:
+            session.add(JobInputBlob(input_id=existing.id, data=data))
+        else:
+            blob.data = data
+            session.add(blob)
+    else:
+        row = JobInput(job_id=job_id, name=name, filename=filename,
+                       mime_type=mime_type, bytes=len(data))
+        session.add(row)
+        session.flush()
+        session.add(JobInputBlob(input_id=row.id, data=data))
+    session.commit()
+
+
+@router.get("/{job_id}/inputs", response_model=list[JobInputPublic])
+def read_job_inputs(session: SessionDep, current_user: CurrentUser,
+                    job_id: uuid.UUID) -> Any:
+    _own_job(session, current_user, job_id)
+    rows = session.exec(select(JobInput).where(JobInput.job_id == job_id)).all()
+    return [JobInputPublic.model_validate(r) for r in rows]
 
 
 @router.post("/upload", response_model=JobPublic)

@@ -86,3 +86,49 @@ service code separately from the worker.
 * the frontend — the submission form is built from `param_schema`
 
 If adding a service requires editing any of those, the abstraction has failed.
+
+## The submission form is generated from `param_schema`
+
+Nothing renders a per-service form. The frontend fetches `/jobs/services`, reads the
+selected service's `param_schema`, and maps each property to a control:
+
+| schema | control |
+|---|---|
+| `type: string` | text input |
+| `type: string` with `maxLength > 200` | textarea |
+| `type: string` + `format: textarea` | textarea |
+| `type: number` / `integer` | number input |
+| `type: number` + `format: slider` | range input with the value shown |
+| `type: boolean` | checkbox |
+| `enum: [...]` | select |
+| `format: files` | file picker (multiple) |
+
+An unrecognised `format` falls back to a plain control, so an older frontend works
+against a newer service.
+
+### Declaring a file input
+
+```python
+"sources": {
+    "type": "array",
+    "format": "files",
+    "title": "Game record (.sgf)",
+}
+```
+
+That is the whole declaration. The frontend finds the field by looking for
+`format: "files"` rather than assuming a name, and the values travel as multipart
+parts instead of inside the params JSON. The broker injects the uploaded filenames
+into `params` **before** validating, so a file field can legitimately be `required` --
+without that, validation would always fail with "missing required property" since the
+frontend strips file fields out of the JSON.
+
+### Where a service's parameters are declared
+
+Once, in the plugin, as `param_schema`. It is then used for three things:
+
+1. the worker publishes it to the broker at registration
+2. the broker validates every submission against it
+3. the frontend builds the form from it
+
+So a new parameter needs one edit, in one file, with no broker or frontend change.

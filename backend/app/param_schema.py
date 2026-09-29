@@ -33,6 +33,11 @@ SUPPORTED_KEYWORDS = {
     "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
     "minLength", "maxLength", "pattern", "items", "minItems", "maxItems",
     "anyOf", "oneOf", "allOf", "default", "title", "description",
+    # `format` is a RENDERING HINT, not validation: it tells the form which widget
+    # to use ("sgf_files" -> a file picker, "slider" -> a range input). It carries no
+    # semantics here on purpose, so a frontend that does not know a format can fall
+    # back to a plain control instead of failing.
+    "format",
 }
 IGNORED_KEYWORDS = {"title", "description", "examples", "$schema", "$id"}
 

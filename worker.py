@@ -132,6 +132,23 @@ class Broker:
             # that was not JSON (e.g. a proxy error page)
             raise BrokerUnreachable(f"{type(e).__name__}: {e}") from e
 
+    def input_meta(self, job_id: str, name: str) -> dict:
+        for row in self._request("GET", f"/worker/jobs/{job_id}/inputs"):
+            if row["name"] == name:
+                return row
+        raise BrokerError(404, f"input {name!r} not listed for job {job_id}")
+
+    def input_data(self, job_id: str, name: str) -> bytes:
+        url = f"{self.base}/worker/jobs/{job_id}/inputs/{name}/data"
+        req = urllib.request.Request(url, headers={"X-Worker-Key": self.api_key})
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            raise BrokerError(e.code, e.read().decode("utf-8", "replace")[:200])
+        except (urllib.error.URLError, OSError) as e:
+            raise BrokerUnreachable(f"{type(e).__name__}: {e}") from e
+
     def claim(self, worker_name: str, lease_seconds: int):
         return self._request(
             "POST", "/worker/claim",
@@ -233,18 +250,37 @@ def _first_line(text: str | None) -> str | None:
     return None
 
 
-def stage_input(claimed: dict, workdir: Path) -> Path:
-    """Write the job's payload into the working directory.
+def stage_input(broker: Broker, claimed: dict, workdir: Path) -> list[Path]:
+    """Put the job's input files into the working directory.
 
-    The filename is preserved because services may derive output names from it (the
-    SGF pipeline does). A service that consumes something other than text would read
-    its own input; `payload` is the general field, and jobs submitted through the
-    legacy SGF path populate it from sgf_text.
+    Two sources, because they exist for different reasons:
+
+    * uploaded inputs, fetched from the broker by name -- the general path, since a
+      service may need several named files and their bytes are far too large to inline
+      in a job row
+    * `payload`, the inline text a legacy SGF submission carries
+
+    Filenames are preserved: the SGF pipeline derives its output names from the input
+    stem, so renaming to something generic would change what the user receives.
     """
-    name = claimed.get("sgf_name") or "input.txt"
-    path = workdir / Path(name).name
-    path.write_text(claimed.get("payload") or "", encoding="utf-8")
-    return path
+    staged: list[Path] = []
+
+    for name in (claimed.get("inputs") or []):
+        meta = broker.input_meta(claimed["job_id"], name)
+        filename = Path(meta.get("filename") or f"{name}.bin").name
+        dest = workdir / filename
+        dest.write_bytes(broker.input_data(claimed["job_id"], name))
+        staged.append(dest)
+        log(f"  staged input {name!r} as {filename} "
+            f"({dest.stat().st_size/1e6:.2f} MB)")
+
+    if not staged:
+        name = claimed.get("sgf_name") or "input.txt"
+        path = workdir / Path(name).name
+        path.write_text(claimed.get("payload") or "", encoding="utf-8")
+        staged.append(path)
+
+    return staged
 
 
 def process_one(broker: Broker, plugin, claimed: dict, lease_seconds: int,
@@ -266,7 +302,7 @@ def process_one(broker: Broker, plugin, claimed: dict, lease_seconds: int,
     outdir = workdir / "out"
     outdir.mkdir(parents=True, exist_ok=True)
     try:
-        stage_input(claimed, workdir)
+        stage_input(broker, claimed, workdir)
         broker.progress(job_id, token, 5, "worker started")
 
         def progress(pct: int, message: str) -> None:

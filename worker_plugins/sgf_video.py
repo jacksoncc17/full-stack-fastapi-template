@@ -25,6 +25,17 @@ DEFAULT_TOOLKIT = "/home/wei/playground/goGames/selfCommentary"
 PARAM_SCHEMA = {
     "type": "object",
     "properties": {
+        # Consumes an uploaded file. `format: "files"` is a RENDERING HINT -- the
+        # frontend draws a file picker for it, and this is the one field whose value
+        # travels as a multipart part instead of inside the params JSON. Declaring it
+        # here means the form knows where files go without the frontend knowing
+        # anything about this service.
+        "sources": {
+            "type": "array",
+            "format": "files",
+            "title": "Game record (.sgf)",
+            "description": "The SGF file to render.",
+        },
         "duration_s": {
             "type": "number", "minimum": 10, "maximum": 480, "default": 180,
             "title": "Duration (seconds)",
@@ -58,7 +69,7 @@ PARAM_SCHEMA = {
             "title": "Output formats",
         },
     },
-    "required": ["duration_s"],
+    "required": ["duration_s", "sources"],
     "additionalProperties": False,
 }
 

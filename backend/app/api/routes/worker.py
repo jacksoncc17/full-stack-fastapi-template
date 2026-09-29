@@ -16,13 +16,16 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app import crud_jobs as cj
 from app import param_schema
 from app.api.deps import SessionDep
 from app.models_jobs import (
     Artifact,
+    JobInput,
+    JobInputBlob,
+    JobInputPublic,
     ServicePublish,
     ArtifactPublic,
     Job,
@@ -56,7 +59,7 @@ def get_current_worker(
 CurrentWorker = Annotated[Worker, Depends(get_current_worker)]
 
 
-def _claimed(job) -> JobClaimed:
+def _claimed(session: Session, job) -> JobClaimed:
     """Build the worker's view of a job.
 
     Params are derived the same way submissions are: a job submitted through the
@@ -69,8 +72,12 @@ def _claimed(job) -> JobClaimed:
         params = {f: getattr(job, f) for f in (
             "duration_s", "bpm", "musical_key", "time_sig", "seed", "visits",
             "formats")}
+    input_names = list(session.exec(
+        select(JobInput.name).where(JobInput.job_id == job.id)
+    ).all()) if job.id else []
     return JobClaimed(
         job_id=job.id,
+        inputs=input_names,
         lease_token=job.lease_token,
         lease_expires_at=job.lease_expires_at,
         attempts=job.attempts,
@@ -106,7 +113,7 @@ def claim(
     )
     if job is None:
         return None
-    return _claimed(job)
+    return _claimed(session, job)
 
 
 @router.post("/jobs/{job_id}/progress", response_model=JobEventPublic)
@@ -141,7 +148,7 @@ def renew(
         )
     except cj.LeaseLost as e:
         raise HTTPException(status_code=409, detail=str(e))
-    return _claimed(job)
+    return _claimed(session, job)
 
 
 @router.post("/jobs/{job_id}/artifacts", response_model=ArtifactPublic)
@@ -230,6 +237,31 @@ def heartbeat(
     body = body or WorkerHeartbeat()
     cj.touch_worker(session=session, worker=worker, capabilities=body.capabilities)
     return {"worker": worker.name, "ok": True}
+
+
+@router.get("/jobs/{job_id}/inputs", response_model=list[JobInputPublic])
+def list_job_inputs(session: SessionDep, worker: CurrentWorker,
+                    job_id: uuid.UUID) -> Any:
+    """Input files for a claimed job -- metadata only, so a worker can decide what to
+    fetch (and skip re-fetching an input it already has from a retry)."""
+    rows = session.exec(select(JobInput).where(JobInput.job_id == job_id)).all()
+    return [JobInputPublic.model_validate(r) for r in rows]
+
+
+@router.get("/jobs/{job_id}/inputs/{name}/data")
+def download_job_input(session: SessionDep, worker: CurrentWorker,
+                       job_id: uuid.UUID, name: str) -> Response:
+    row = session.exec(
+        select(JobInput).where(JobInput.job_id == job_id, JobInput.name == name)
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"No input named {name!r}")
+    blob = session.get(JobInputBlob, row.id)
+    if blob is None:
+        raise HTTPException(status_code=404, detail="Input has no stored bytes")
+    return Response(content=blob.data, media_type=row.mime_type,
+                    headers={"Content-Disposition":
+                             f'attachment; filename="{row.filename}"'})
 
 
 @router.get("/jobs/{job_id}/artifacts", response_model=list[ArtifactPublic])

@@ -28,6 +28,8 @@ from app.models_jobs import (  # noqa: F401
     ArtifactBlob,
     Job,
     JobEvent,
+    JobInput,
+    JobInputBlob,
     Service,
     Worker,
     WorkerService,
