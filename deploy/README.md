@@ -86,6 +86,35 @@ the Google secret straight in it and ignore `.env.secret` entirely.
 ### 6. Start it
 
 ```bash
+./deploy/deploy.sh
+```
+
+`deploy.sh` does the steps above and refuses to proceed on the misconfigurations
+that fail silently in production. It:
+
+* creates `.env` from the production template if absent
+* generates `SECRET_KEY`, `POSTGRES_PASSWORD` and `FIRST_SUPERUSER_PASSWORD` when
+  they are missing or still `changethis` — and **only** then, so re-running never
+  rotates the database password out from under an initialised volume
+* resolves `${DOMAIN}`-style references inside `.env`. Docker Compose interpolates
+  those in the compose files but **not** in `.env` values, so without this
+  `FRONTEND_HOST` reaches the app as the literal string `${DOMAIN}`, which breaks
+  CORS and the OAuth redirect silently
+* fails on: a missing/placeholder `DOMAIN`, any `FASTAPI_ENV=development` line,
+  placeholder secrets, and a `DATABASE_URL` whose host is not `db`
+* warns on a non-HTTPS `FRONTEND_HOST` and a `GOOGLE_REDIRECT_URI` that does not
+  mention `$DOMAIN`
+* pulls, builds, starts with `--wait`, then prints the worker registration command
+
+```bash
+./deploy/deploy.sh --dry-run     # report problems, change nothing
+./deploy/deploy.sh --no-build    # later deploys, reuse the images
+./deploy/deploy.sh --no-pull     # skip git pull
+```
+
+Equivalent by hand:
+
+```bash
 docker compose -f compose.yml -f compose.deploy.yml up -d --build
 ```
 
