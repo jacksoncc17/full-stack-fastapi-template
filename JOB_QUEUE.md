@@ -324,3 +324,42 @@ relationship targets at mapper-configuration time and failed with
 query that configured mappers** — including the worker auth lookup, so a bogus key
 returned 500 instead of 403. `OAuthAccount` is now defined after `User`, and there
 is a comment saying why the order matters.
+
+## The first superuser has to be created explicitly
+
+Symptom: `POST /api/v1/login/access-token` for the account in `.env`
+(`admin@example.com` / `changethis`) returns **400 Incorrect email or password**,
+and every admin route 401s.
+
+Cause: **the user does not exist yet.** The template creates it in
+`backend/scripts/prestart.sh`:
+
+```bash
+alembic upgrade head          # create the tables
+python app/initial_data.py     # create the FIRST_SUPERUSER from .env
+```
+
+Booting the API directly with `uvicorn app.main:app` — which is what the local dev
+commands here did — skips that, so the database has no superuser at all. It is not
+an auth bug: `crud.authenticate` finds no user and reports bad credentials, which
+is the correct response for a missing account.
+
+Fix, either:
+
+```bash
+# inside the backend container (PYTHONPATH is needed when not launched via uvicorn)
+docker exec -e PYTHONPATH=/w/backend <api-container> python app/initial_data.py
+
+# or the full template path
+bash backend/scripts/prestart.sh
+```
+
+Two related traps in the same area:
+
+* **`FIRST_SUPERUSER_PASSWORD` must be at least 8 characters.** `initial_data.py`
+  builds a `UserCreate`, whose schema enforces `min_length=8`, so a short password
+  fails with `ValidationError: String should have at least 8 characters` and the
+  superuser is silently not created. `changethis` (the template default) is fine;
+  a 7-character password is not.
+* `init_data` is idempotent — it looks the user up by email first — so re-running
+  it is safe.
