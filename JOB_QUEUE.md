@@ -526,3 +526,56 @@ Verified by restarting the API underneath a live worker:
 
 and then, after the API came back, a job submitted during the outage was claimed and
 finished (`succeeded`, 1 attempt) with no restart.
+
+## The dev database was never built by migrations
+
+Google login returned **500** at the last step of the callback:
+
+```
+google_auth.py:160 → SELECT oauthaccount → UndefinedTable:
+  relation "oauthaccount" does not exist
+```
+
+The credentials, the redirect URI and the token exchange had all worked — it got as
+far as looking up the user. The table simply was not there.
+
+Root cause: the dev database had been created with
+`SQLModel.metadata.create_all()` during early logic tests, **never by Alembic**, so
+it had no `alembic_version` table at all:
+
+```
+tables: artifact, artifactblob, item, job, jobevent, user, worker
+alembic_version → does not exist
+```
+
+`oauthaccount` was added later and only to the migration, so it existed in the
+migration chain and in `create_all`-fresh databases but not in the running dev one.
+Two schemas had silently diverged, and Google login was the first feature to touch
+the difference.
+
+Fix: rebuild the dev database from the migration chain.
+
+```bash
+docker rm -f dsh-api                       # stop whatever holds connections
+docker exec dsh-pg psql -U postgres -c "DROP DATABASE app;"
+docker exec dsh-pg psql -U postgres -c "CREATE DATABASE app;"
+# then, in the backend container: alembic upgrade head && python app/initial_data.py
+./dev-restart-api.sh
+```
+
+Verified afterwards: 7 migrations applied, `alembic_version = b7d1f4c9a2e5`,
+`oauthaccount` present, `ix_job_lease_reap` present, superuser created.
+
+### Two traps worth remembering
+
+**The API container will fight you.** `DROP DATABASE` followed immediately by
+`alembic upgrade` failed with `relation "user" already exists`, because the running
+API recreated tables in between. Alembic works perfectly on a genuinely empty
+database — the failure was interference, not a bad migration. Stop the API first.
+
+**Dropping the database invalidates worker keys.** `worker` rows live there, so
+after the rebuild the running worker started getting **403** on every claim and
+silently stopped taking work — the queue looked stalled with no error in the API.
+The worker kept retrying (it does not exit on 403), so the fix was to re-register
+and restart it. Any credential stored in the database dies with it, including API
+keys.
