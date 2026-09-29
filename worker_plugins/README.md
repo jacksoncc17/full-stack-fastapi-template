@@ -79,6 +79,31 @@ read as something the *submitter* can act on rather than a stack trace.
 **`--plugin-dir`** loads plugins from outside this package, so a deployment can ship
 service code separately from the worker.
 
+**A service is either a module or a package.** In the bundled `worker_plugins/` it is
+one file per service, which is the right default. In a `--plugin-dir` it may also be a
+directory:
+
+```
+services/
+  intonationCheck/          <- package: one service, several modules
+    __init__.py             <- re-exports `plugin`
+    plugin.py               <- the contract: name, param_schema, artifact_kinds, run
+    score.py  pitch.py  report.py
+    tests/
+```
+
+Use a package when the service genuinely needs more than one file — a parser, a
+measurement, a renderer — and wants them kept together with their own tests. Two rules
+apply to both shapes:
+
+* the directory (or file) name, the import name and the plugin's own `name` must all be
+  identical — the loader rejects a mismatch, so a mistake is a startup error rather
+  than a service that silently never loads;
+* only the package itself is imported, never modules inside it, so submodules must
+  reach each other with relative imports (`from .score import ...`). `--plugin-dir`
+  puts the *parent* directory on `sys.path`, so the package is imported by its bare
+  name and any absolute self-import would fail.
+
 ## What you do not have to touch
 
 * the broker — it learns the schema from the worker at registration

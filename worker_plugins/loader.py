@@ -79,10 +79,7 @@ def load_plugins(plugin_dirs: list[Path] | None = None,
         if not directory.is_dir():
             raise PluginError(f"--plugin-dir is not a directory: {directory}")
         sys.path.insert(0, str(directory))
-        for path in sorted(directory.glob("*.py")):
-            name = path.stem
-            if not _is_module_plugin(name):
-                continue
+        for name, path in _candidates(directory):
             try:
                 module = importlib.import_module(name)
             except Exception as e:                # noqa: BLE001
@@ -95,6 +92,30 @@ def load_plugins(plugin_dirs: list[Path] | None = None,
             "silently claim nothing"
         )
     return plugins
+
+
+def _candidates(directory: Path) -> list[tuple[str, Path]]:
+    """Service-plugins available in `directory`, as (module name, path).
+
+    Both shapes are supported, because both are reasonable ways to write a service:
+
+    * `name.py` -- a single-module service, the simplest thing that works
+    * `name/__init__.py` -- a package, for a service that needs more than one file
+      (a parser, a measurement, a renderer) and wants them together
+
+    Only the package itself is imported, never the modules inside it: a package is
+    imported by its own name, so its submodules reach each other with relative
+    imports. Importing `name/plugin.py` directly would put it at the top level and
+    break those imports.
+    """
+    found: list[tuple[str, Path]] = []
+    for path in sorted(directory.iterdir()):
+        if path.is_dir():
+            if (path / "__init__.py").is_file() and _is_module_plugin(path.name):
+                found.append((path.name, path))
+        elif path.suffix == ".py" and _is_module_plugin(path.stem):
+            found.append((path.stem, path))
+    return found
 
 
 def describe(plugins: dict[str, ServicePlugin]) -> str:
