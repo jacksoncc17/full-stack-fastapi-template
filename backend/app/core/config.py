@@ -14,8 +14,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        # Use top level .env file (one level above ./backend/)
-        env_file="../.env",
+        # Both files are read, later entries winning. .env is committed by the
+        # template and holds placeholders; .env.secret is git-ignored and holds
+        # real credentials. Keeping them apart means a Google client secret never
+        # ends up in version control just because it was convenient to put it
+        # next to the client id.
+        env_file=("../.env", "../.env.secret"),
         env_ignore_empty=True,
         extra="ignore",
     )

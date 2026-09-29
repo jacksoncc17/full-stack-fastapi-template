@@ -441,3 +441,88 @@ Verified both sides of the change:
 A note for any future endpoint that returns raw bytes: this is the pattern to
 copy, and the OpenAPI type for such an endpoint is `unknown`, so the Blob needs an
 explicit cast.
+
+## Configuring Google sign-in
+
+The login page hides the Google button unless the API reports Google as enabled, so
+it is expected to be absent until credentials exist:
+`GET /api/v1/auth/google/status` → `{"enabled": false}` and `GoogleSignInButton`
+returns `null`.
+
+### Where the credentials go
+
+`.env` is **tracked by git** in this template, so a real client secret must not go
+there. `config.py` now reads two files, later winning:
+
+```python
+env_file=("../.env", "../.env.secret")
+```
+
+| file | contents | tracked |
+|---|---|---|
+| `.env` | `GOOGLE_CLIENT_ID`, redirect URIs, everything non-secret | yes |
+| `.env.secret` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | **no** (git-ignored) |
+| `.env.secret.example` | the keys with empty values, so they are discoverable | yes |
+
+```bash
+cp .env.secret.example .env.secret
+# fill in the two values, then restart the API
+```
+
+Verified both directions: with `.env.secret` populated the settings load
+(`google_oauth_enabled=True`, redirect URIs resolved); with it empty the app still
+boots, `/auth/google/status` reports `enabled:false`, email/password login returns
+200 and `/auth/google/login` returns 503.
+
+### Still required from you
+
+Credentials must come from a Google Cloud project: *APIs & Services* →
+*Credentials* → *OAuth client ID* → **Web application**, with an authorised
+redirect URI matching `GOOGLE_REDIRECT_URI` **exactly** (Google compares the full
+string, port included):
+
+```
+http://localhost:8000/api/v1/auth/google/callback
+```
+
+If the OAuth consent screen is in *Testing* mode, only accounts listed under
+**Test users** may sign in; anyone else gets `access_denied` from Google before the
+callback runs.
+
+This path has still never been executed end to end — there are no real credentials
+to test with. The unconfigured behaviour is verified; the live round-trip is not.
+
+## A worker must survive a broker outage
+
+Found by accident: restarting the API killed a running worker with
+
+```
+ConnectionResetError: [Errno 104] Connection reset by peer
+  at broker.claim(...)  → uncaught → exit 1
+```
+
+`urllib` raises raw `OSError` subclasses for network failures, not `HTTPError`, so
+the main loop's `except BrokerError` did not catch them. The consequence is worse
+than a crash loop: the worker **exits**, so it silently stops taking work and the
+dashboard shows a stalled queue with no visible cause.
+
+Fixes:
+
+* `_request` now translates `URLError` / `OSError` / non-JSON bodies into
+  `BrokerUnreachable` (an `HTTPError`-free subclass with `status=0`), so the
+  existing retry path handles them
+* the claim loop backs off — 2x the poll interval for an HTTP error, 4x (capped at
+  60 s) when the broker is unreachable — instead of spinning
+* a failed startup heartbeat warns and keeps going rather than refusing to start,
+  since a restarting API is the common case
+
+Verified by restarting the API underneath a live worker:
+
+```
+[22:31:10] claim failed (unreachable): URLError: Connection refused -- retrying in 20s
+[22:31:30] claim failed (unreachable): ConnectionResetError: Connection reset by peer -- retrying in 20s
+[status: running]
+```
+
+and then, after the API came back, a job submitted during the outage was claimed and
+finished (`succeeded`, 1 attempt) with no restart.

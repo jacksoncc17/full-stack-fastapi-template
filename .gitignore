@@ -6,3 +6,12 @@ backend/app/frontend/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# real credentials; see .env.secret.example
+.env.secret
+
+# local build caches (bun/npm need their caches redirected here because $HOME is
+# read-only in some sandboxes)
+.caches/
+__pycache__/
+*.pyc

@@ -78,6 +78,24 @@ class BrokerError(Exception):
         self.detail = detail
 
 
+class BrokerUnreachable(BrokerError):
+    """The broker could not be reached at all.
+
+    Distinct from an HTTP error: urllib raises raw OSError subclasses
+    (ConnectionResetError, ConnectionRefusedError, timeout) rather than HTTPError,
+    so without translating them the main loop's `except BrokerError` misses them
+    and the worker dies on the first network blip -- for example when the API is
+    restarted, or a load balancer drops an idle connection. A worker that exits on
+    a transient error is worse than useless: it silently stops taking work and the
+    queue looks stalled for no visible reason.
+
+    status 0 is used because there was no HTTP response.
+    """
+
+    def __init__(self, detail: str):
+        super().__init__(0, detail)
+
+
 class LeaseLost(BrokerError):
     """The broker rejected a write because this worker no longer owns the job."""
 
@@ -110,6 +128,10 @@ class Broker:
             if e.code == 409:
                 raise LeaseLost(e.code, detail)
             raise BrokerError(e.code, detail)
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            # no HTTP response at all: DNS, refused, reset, timeout, or a body
+            # that was not JSON (e.g. a proxy error page)
+            raise BrokerUnreachable(f"{type(e).__name__}: {e}") from e
 
     def claim(self, worker_name: str, lease_seconds: int):
         return self._request(
@@ -356,8 +378,11 @@ def main() -> int:
         broker.heartbeat({"toolkit": str(args.toolkit),
                           "fake": args.fake_pipeline})
     except BrokerError as e:
-        print(f"error: cannot reach broker at {args.broker}: {e}", file=sys.stderr)
-        return 2
+        # A single failed heartbeat at startup is not proof the broker is gone
+        # (a restarting API is the common case), so warn and let the claim loop
+        # keep retrying rather than refusing to start.
+        print(f"warning: broker not reachable yet at {args.broker}: {e}; "
+              f"will keep retrying", file=sys.stderr)
 
     log(f"worker {args.name!r} -> {args.broker}"
         f"{' (FAKE PIPELINE)' if args.fake_pipeline else ''}")
@@ -368,8 +393,12 @@ def main() -> int:
         try:
             claimed = broker.claim(args.name, args.lease_seconds)
         except BrokerError as e:
-            log(f"claim failed: {e}")
-            if STOP.wait(args.poll_interval * 2):
+            # a broker outage is routine, not fatal: back off and keep trying
+            unreachable = isinstance(e, BrokerUnreachable)
+            wait = min(60.0, args.poll_interval * (4 if unreachable else 2))
+            log(f"claim failed ({'unreachable' if unreachable else 'http'}): {e}"
+                f" -- retrying in {wait:.0f}s")
+            if STOP.wait(wait):
                 break
             continue
 
