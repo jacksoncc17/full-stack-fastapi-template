@@ -132,3 +132,56 @@ Once, in the plugin, as `param_schema`. It is then used for three things:
 3. the frontend builds the form from it
 
 So a new parameter needs one edit, in one file, with no broker or frontend change.
+
+## Launching a worker
+
+A worker needs a key from the broker, and that is the only setup:
+
+```bash
+cd full-stack-fastapi-template
+
+# 1. register it (admin token from an email/password login, or the Workers page)
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/login/access-token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'username=admin@example.com&password=changethis' \
+  | python3 -c "import json,sys;print(json.load(sys.stdin)['access_token'])")
+
+curl -s -X POST http://localhost:8000/api/v1/admin/workers/ \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"sgf-worker-1"}'
+# => {"api_key": "...", ...}   the key is shown ONCE
+
+# 2. see what this checkout can run
+python3 worker.py --list-services
+
+# 3. run the SGF service for real
+python3 worker.py --broker http://localhost:8000/api/v1 \
+  --key <api_key> --name sgf-worker-1 \
+  --service sgf_video \
+  --toolkit /path/to/selfCommentary
+```
+
+On startup it **publishes its contract** (so the broker learns the parameter schema and
+binds this worker to `sgf_video`) and then polls for jobs of that service only.
+
+### Flags worth knowing
+
+| flag | why |
+|---|---|
+| `--service sgf_video` | pick one plugin explicitly. Without it every loaded plugin is published, and **the broker binds a worker to one service — the last published wins** |
+| `--toolkit /path` | where `go_music_video.py` lives. Only the SGF service needs it |
+| `--fake-pipeline` | stub artifacts, no render. Exercises the queue in seconds |
+| `--plugin-dir /path` | load plugins from outside this package |
+| `--lease-seconds 3600` | must exceed the longest render; the lease auto-renews every ~5 min anyway |
+| `--list-services` | show what would load, then exit |
+| `--once` | process one job and exit, for testing |
+
+### The toolkit requirement
+
+Only `sgf_video` needs `--toolkit`, and it needs more than the script: the pipeline
+reaches **KataGo over SSH** and **ACE-Step over HTTP**. A worker without those will
+claim a job and fail it with a clear error. Use `--fake-pipeline` to test the plumbing
+anywhere.
+
+For a long-running worker, see `deploy/worker.service` -- a systemd unit, so it
+survives reboots and network changes.

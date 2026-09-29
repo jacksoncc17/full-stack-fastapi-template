@@ -65,7 +65,7 @@ class TarotDraw:
     artifact_kinds = ("reading_txt",)
 
     def run(self, params: dict, workdir: Path, outdir: Path,
-            progress: ProgressFn) -> list[dict]:
+            progress: ProgressFn, inputs=None) -> list[dict]:
         question = params["question"]
         n = int(params.get("cards", 3))
         allow_reversed = bool(params.get("reversed", True))
@@ -95,7 +95,7 @@ class TarotDraw:
         return [{"kind": "reading_txt", "path": out}]
 
     def fake_run(self, params: dict, workdir: Path, outdir: Path,
-                 progress: ProgressFn) -> list[dict]:
+                 progress: ProgressFn, inputs=None) -> list[dict]:
         progress(50, "fake tarot draw")
         out = outdir / "reading.txt"
         out.parent.mkdir(parents=True, exist_ok=True)

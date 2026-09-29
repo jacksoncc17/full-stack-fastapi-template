@@ -250,7 +250,7 @@ def _first_line(text: str | None) -> str | None:
     return None
 
 
-def stage_input(broker: Broker, claimed: dict, workdir: Path) -> list[Path]:
+def stage_input(broker: Broker, claimed: dict, workdir: Path) -> dict[str, list[Path]]:
     """Put the job's input files into the working directory.
 
     Two sources, because they exist for different reasons:
@@ -263,22 +263,22 @@ def stage_input(broker: Broker, claimed: dict, workdir: Path) -> list[Path]:
     Filenames are preserved: the SGF pipeline derives its output names from the input
     stem, so renaming to something generic would change what the user receives.
     """
-    staged: list[Path] = []
+    staged: dict[str, list[Path]] = {}
 
     for name in (claimed.get("inputs") or []):
         meta = broker.input_meta(claimed["job_id"], name)
         filename = Path(meta.get("filename") or f"{name}.bin").name
         dest = workdir / filename
         dest.write_bytes(broker.input_data(claimed["job_id"], name))
-        staged.append(dest)
+        staged.setdefault(name, []).append(dest)
         log(f"  staged input {name!r} as {filename} "
             f"({dest.stat().st_size/1e6:.2f} MB)")
 
     if not staged:
-        name = claimed.get("sgf_name") or "input.txt"
-        path = workdir / Path(name).name
+        name = "payload"
+        path = workdir / Path(claimed.get("sgf_name") or "input.txt").name
         path.write_text(claimed.get("payload") or "", encoding="utf-8")
-        staged.append(path)
+        staged[name] = [path]
 
     return staged
 
@@ -302,7 +302,7 @@ def process_one(broker: Broker, plugin, claimed: dict, lease_seconds: int,
     outdir = workdir / "out"
     outdir.mkdir(parents=True, exist_ok=True)
     try:
-        stage_input(broker, claimed, workdir)
+        staged = stage_input(broker, claimed, workdir)
         broker.progress(job_id, token, 5, "worker started")
 
         def progress(pct: int, message: str) -> None:
@@ -323,14 +323,15 @@ def process_one(broker: Broker, plugin, claimed: dict, lease_seconds: int,
                     f"service {plugin.name!r} has no fake_run(); --fake-pipeline "
                     f"cannot be used with it"
                 )
-            produced = fake_fn(claimed.get("params") or {}, workdir, outdir, progress)
+            produced = fake_fn(claimed.get("params") or {}, workdir, outdir,
+                               progress, staged)
         else:
             params = dict(claimed.get("params") or {})
             if extra:
                 # pass-through flags only make sense for the pipeline; keep them
                 # available to plugins that want them
                 params.setdefault("_extra_args", extra)
-            produced = plugin.run(params, workdir, outdir, progress)
+            produced = plugin.run(params, workdir, outdir, progress, staged)
 
         if keeper.lost:
             raise LeaseLost(409, f"lease lost while running: {keeper.lost}")

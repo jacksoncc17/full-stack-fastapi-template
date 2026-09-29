@@ -65,8 +65,15 @@ class ServicePlugin(Protocol):
         workdir: Path,
         outdir: Path,
         progress: ProgressFn,
+        inputs: dict[str, list[Path]] | None = None,
     ) -> Iterable[dict]:
         """Do the work for one job.
+
+        `inputs` maps the service's file field name (from `param_schema`) to the
+        staged files for it. Passed explicitly rather than left for the plugin to
+        discover by scanning `workdir`: a service may declare several input fields,
+        and guessing which file is which would be unreliable exactly when it matters.
+        It stays optional so a plugin with no inputs ignores it.
 
         `workdir` is scratch space, safe to fill and expected to be deleted -- this
         is the right place for intermediate files, including large ones.

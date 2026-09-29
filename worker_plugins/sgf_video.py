@@ -96,7 +96,7 @@ class SgfVideo:
         self.extra_args = list(extra_args or [])
 
     def fake_run(self, params: dict, workdir: Path, outdir: Path,
-                 progress: ProgressFn) -> list[dict]:
+                 progress: ProgressFn, inputs=None) -> list[dict]:
         """Stub outputs for the worker's --fake-pipeline mode.
 
         Part of the contract so each service owns its own stub: the worker must not
@@ -117,19 +117,25 @@ class SgfVideo:
         return made
 
     def run(self, params: dict, workdir: Path, outdir: Path,
-            progress: ProgressFn) -> list[dict]:
+            progress: ProgressFn, inputs=None) -> list[dict]:
         script = self.toolkit / "go_music_video.py"
         if not script.is_file():
             raise RuntimeError(
                 f"toolkit not found: {script} (pass --toolkit to the worker)"
             )
 
-        # The pipeline derives its output names from the SGF's stem, so the file must
-        # keep the name the submitter gave it rather than a generic temp name.
-        sgf = next((p for p in workdir.iterdir()
-                    if p.is_file() and p.suffix.lower() != ".json"), None)
+        # The staged SGF is handed over by name. The pipeline derives its output
+        # names from the input stem, so the worker preserved the submitted filename.
+        staged = []
+        if inputs:
+            for path_list in inputs.values():
+                staged.extend(path_list)
+        sgf = staged[0] if staged else None
         if sgf is None:
-            raise RuntimeError("no input file was staged for this job")
+            raise RuntimeError(
+                "no SGF was staged for this job: declare a file field with "
+                "format: 'files' in param_schema"
+            )
 
         progress(10, "starting the render pipeline")
         cmd = [
