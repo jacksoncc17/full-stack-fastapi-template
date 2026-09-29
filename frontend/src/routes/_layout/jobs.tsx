@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useState } from "react"
 import { createFileRoute, Link as RouterLink } from "@tanstack/react-router"
-import { Download, RefreshCw, TriangleAlert } from "lucide-react"
+import { Download, Loader2, RefreshCw, TriangleAlert } from "lucide-react"
 
 import { JobsService } from "@/client"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +20,61 @@ const STATUS_STYLES: Record<string, string> = {
   succeeded: "bg-emerald-600",
   failed: "bg-red-600",
   canceled: "bg-zinc-500",
+}
+
+/**
+ * Download an artifact.
+ *
+ * NOT a plain <a href>: the API authenticates with a Bearer header, and the token
+ * is attached by the generated client's `auth` hook (see main.tsx). A browser
+ * navigation sends no such header, so a bare link comes back
+ * `{"detail":"Not authenticated"}`. Fetching through the client and saving the
+ * blob keeps the token in one place and works for every artifact kind.
+ */
+function ArtifactLink({ jobId, artifact }: { jobId: string; artifact: any }) {
+  const [busy, setBusy] = useState(false)
+  const { showErrorToast } = useCustomToast()
+
+  const download = async () => {
+    setBusy(true)
+    try {
+      const res = await JobsService.downloadArtifact({
+        path: { job_id: jobId, artifact_id: artifact.id },
+        // the endpoint returns raw bytes; with the axios client, responseType
+        // "blob" is what makes the body come back as a Blob rather than text
+        responseType: "blob",
+      })
+      const blob = res.data as unknown as Blob
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = artifact.filename ?? `${artifact.kind}.bin`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      showErrorToast("Could not download the artifact")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      className="text-primary flex items-center gap-1 text-xs hover:underline disabled:opacity-50"
+      disabled={busy}
+      onClick={download}
+      type="button"
+    >
+      {busy ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Download className="h-3 w-3" />
+      )}
+      {artifact.kind} · {(artifact.bytes / 1e6).toFixed(1)} MB
+    </button>
+  )
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -192,8 +248,6 @@ function JobRow({ job, onCancel }: { job: any; onCancel: () => void }) {
     queryKey: ["jobs", job.id, "artifacts"],
   })
 
-  const base = import.meta.env.VITE_API_URL ?? ""
-
   return (
     <tr className="border-t">
       <td className="p-3">
@@ -228,16 +282,7 @@ function JobRow({ job, onCancel }: { job: any; onCancel: () => void }) {
       <td className="p-3">
         <div className="flex flex-col gap-1">
           {(artifacts ?? []).map((a: any) => (
-            <a
-              key={a.id}
-              className="text-primary flex items-center gap-1 text-xs hover:underline"
-              href={`${base}/api/v1/jobs/${job.id}/artifacts/${a.id}`}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <Download className="h-3 w-3" />
-              {a.kind} · {(a.bytes / 1e6).toFixed(1)} MB
-            </a>
+            <ArtifactLink artifact={a} jobId={job.id} key={a.id} />
           ))}
           {job.status === "succeeded" && (artifacts ?? []).length === 0 ? (
             <span className="text-muted-foreground text-xs">none</span>

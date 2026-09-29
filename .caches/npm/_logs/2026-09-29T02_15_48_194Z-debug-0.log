@@ -1,0 +1,19 @@
+0 verbose cli /home/wei/.nvm/versions/node/v24.20.0/bin/node /home/wei/.nvm/versions/node/v24.20.0/bin/npm
+1 info using npm@11.19.0
+2 info using node@v24.20.0
+3 silly config load:file:/home/wei/.nvm/versions/node/v24.20.0/lib/node_modules/npm/npmrc
+4 info config found workspace root at /home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template
+5 silly config load:file:/home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template/.npmrc
+6 silly config load:file:/home/wei/.npmrc
+7 silly config load:file:/home/wei/.nvm/versions/node/v24.20.0/etc/npmrc
+8 verbose title npm run build
+9 verbose argv "run" "build"
+10 verbose logfile logs-max:10 dir:/home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template/.caches/npm/_logs/2026-09-29T02_15_48_194Z-
+11 verbose logfile /home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template/.caches/npm/_logs/2026-09-29T02_15_48_194Z-debug-0.log
+12 silly logfile done cleaning log files
+13 verbose cwd /home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template/frontend
+14 verbose os Linux 5.15.0-190-generic
+15 verbose node v24.20.0
+16 verbose npm  v11.19.0
+17 verbose exit 0
+18 info ok

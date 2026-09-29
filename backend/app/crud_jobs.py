@@ -129,13 +129,30 @@ def set_worker_active(*, session: Session, worker: Worker, active: bool) -> Work
 # ---- claiming --------------------------------------------------------------
 
 
-def reap_expired_leases(*, session: Session, now: datetime | None = None) -> int:
+# The reaper runs on every claim attempt, and an idle worker polls every few
+# seconds, so without throttling it would scan the job table continuously for
+# nothing. Expiry does not need second-level precision: a job waits a little
+# longer before being retried, which is harmless, whereas scanning on every poll
+# is not. Module-level because the cost being avoided is per-process.
+_LAST_REAP: datetime | None = None
+_REAP_INTERVAL_SECONDS = 15
+
+
+def reap_expired_leases(
+    *, session: Session, now: datetime | None = None, force: bool = False
+) -> int:
     """Return claimed/running jobs whose lease lapsed back to the queue.
 
     A job that has already used up `max_attempts` is failed rather than requeued,
     so a job that reliably kills its worker cannot be retried forever.
     """
+    global _LAST_REAP
     now = now or get_datetime_utc()
+    if not force:
+        if _LAST_REAP is not None and \
+                (now - _LAST_REAP).total_seconds() < _REAP_INTERVAL_SECONDS:
+            return 0
+    _LAST_REAP = now
     statement = (
         select(Job)
         .where(col(Job.status).in_([JobStatus.claimed, JobStatus.running]))

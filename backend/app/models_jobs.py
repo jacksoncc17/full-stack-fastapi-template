@@ -111,6 +111,12 @@ class Job(JobBase, table=True):
     __table_args__ = (
         # the claim query filters on status and orders by created_at
         Index("ix_job_claim", "status", "created_at"),
+        # the lease reaper filters on status AND lease_expires_at. ix_job_status
+        # alone cannot help: status has ~5 distinct values, so the planner would
+        # still read every row of that status. This runs on every claim attempt,
+        # including while the queue is empty, so without it the reaper is a
+        # repeated full scan as the job table grows.
+        Index("ix_job_lease_reap", "status", "lease_expires_at"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

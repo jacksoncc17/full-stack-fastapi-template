@@ -292,4 +292,5 @@ def reap(
     _superuser: Annotated[Any, Depends(get_current_active_superuser)],
 ) -> Any:
     """Force a lease sweep. Normally runs opportunistically on every claim."""
-    return {"reaped": cj.reap_expired_leases(session=session)}
+    # force: the admin asked explicitly, so do not let the throttle skip it
+    return {"reaped": cj.reap_expired_leases(session=session, force=True)}

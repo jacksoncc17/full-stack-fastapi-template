@@ -407,3 +407,37 @@ The register dialog is deliberately a two-step dialog: it shows the name field,
 then swaps to the issued key with an explicit warning that it cannot be shown
 again. A worker that closes it without copying has to be re-registered (which
 rotates the key).
+
+## Artifact downloads go through the client, not a link
+
+Symptom: clicking a download in the dashboard returned
+`{"detail":"Not authenticated"}`.
+
+Cause: the download was a plain `<a href>` pointing at the endpoint. The API
+authenticates with a **Bearer header**, and that header is attached by the
+generated client's `auth` hook in `main.tsx`:
+
+```ts
+client.setConfig({ baseURL: ..., auth: () => localStorage.getItem("access_token") || "" })
+```
+
+A browser navigation sends no such header, so the request was unauthenticated and
+FastAPI's `OAuth2PasswordBearer` returned `Not authenticated`. Worth knowing that
+this is an **axios client**, not fetch, so the raw-bytes call needs
+`responseType: "blob"` (there is no `parseAs` option).
+
+Fix: the dashboard fetches through `JobsService.downloadArtifact` with
+`responseType: "blob"`, then saves the Blob via an object URL and a synthetic
+anchor click. That keeps token handling in exactly one place and works for every
+artifact kind.
+
+Verified both sides of the change:
+
+| request | result |
+|---|---|
+| bare URL, no header (the old behaviour) | `{"detail":"Not authenticated"}` |
+| same URL with `Authorization: Bearer` (what the client now does) | 200, 2.88 MB, `audio/mpeg` |
+
+A note for any future endpoint that returns raw bytes: this is the pattern to
+copy, and the OpenAPI type for such an endpoint is `unknown`, so the Blob needs an
+explicit cast.
