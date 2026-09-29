@@ -19,7 +19,17 @@ fileConfig(config.config_file_name)
 # target_metadata = mymodel.Base.metadata
 # target_metadata = None
 
+# Import models_jobs too, or autogenerate produces an empty migration:
+# target_metadata is built from SQLModel.metadata, and a table only enters
+# it when its module has been imported.
 from app.models import SQLModel  # noqa
+from app.models_jobs import (  # noqa: F401
+    Artifact,
+    ArtifactBlob,
+    Job,
+    JobEvent,
+    Worker,
+)
 from app.core.config import settings # noqa
 
 target_metadata = SQLModel.metadata
