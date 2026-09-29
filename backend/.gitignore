@@ -6,3 +6,6 @@ app.egg-info
 htmlcov
 .cache
 .venv
+
+# built frontend, supplied by the Docker build
+app/frontend/
