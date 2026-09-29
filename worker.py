@@ -54,17 +54,16 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-# artifact kind -> how to recognise the file the pipeline produced
-KIND_BY_SUFFIX = {
-    ".mp4": "mp4",
-    ".webp": "webp",
-    ".gif": "gif",
-    ".mp3": "mp3",
-    ".html": "programme_html",
-    ".svg": "phases_svg",
-}
+from worker_plugins.base import PluginError
+from worker_plugins.loader import describe, load_plugins
 
 STOP = threading.Event()
+
+# The worker is deliberately service-agnostic: it stages input, dispatches to a
+# plugin, uploads whatever the plugin returns, and reports. Everything service
+# specific -- which script to run, which flags, which file is which artifact kind --
+# lives in worker_plugins/. That is what makes a new service addable without
+# touching this file.
 
 
 def log(msg: str) -> None:
@@ -143,6 +142,20 @@ class Broker:
         return self._request("POST", "/worker/heartbeat",
                              {"capabilities": capabilities or {}})
 
+    def publish_service(self, *, name, title, description=None,
+                        param_schema=None, artifact_kinds=None, version="1"):
+        """Register this worker's service contract and bind the worker to it.
+
+        This is the whole registration step: the broker stores the schema for
+        validation and for the frontend form, and binds the worker so the claim
+        query routes only this service's jobs here.
+        """
+        return self._request("POST", "/worker/services", {
+            "name": name, "title": title, "description": description,
+            "param_schema": param_schema, "artifact_kinds": list(artifact_kinds or []),
+            "version": version,
+        })
+
     def renew(self, job_id, token, lease_seconds):
         return self._request("POST", f"/worker/jobs/{job_id}/renew"
                              f"?lease_token={token}&lease_seconds={lease_seconds}")
@@ -210,119 +223,98 @@ class LeaseKeeper(threading.Thread):
                 return
 
 
-def run_real_pipeline(toolkit: Path, sgf: Path, outdir: Path, job: dict,
-                      extra: list[str]) -> tuple[int, str]:
-    """Invoke go_music_video.py for one job."""
-    cmd = [
-        sys.executable, str(toolkit / "go_music_video.py"), str(sgf),
-        "--outdir", str(outdir),
-        "--duration", str(job["duration_s"]),
-        "--visits", str(job["visits"]),
-        "--formats", job["formats"] or "mp4,webp",
-    ]
-    if job.get("bpm") is not None:
-        cmd += ["--bpm", str(job["bpm"])]
-    if job.get("musical_key"):
-        cmd += ["--key", job["musical_key"]]
-    if job.get("time_sig"):
-        cmd += ["--time-sig", job["time_sig"]]
-    if job.get("seed"):
-        cmd += ["--seed", str(job["seed"])]
-    if job.get("title"):
-        cmd += ["--title", job["title"]]
-    cmd += extra
-
-    log(f"  $ {' '.join(cmd)}")
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
-    tail = "\n".join((proc.stdout or "").splitlines()[-20:])
-    if proc.returncode != 0:
-        err = (proc.stderr or tail)[-3000:]
-        return proc.returncode, err
-    return 0, tail
+def _first_line(text: str | None) -> str | None:
+    """First non-empty line of a docstring, for the service description."""
+    if not text:
+        return None
+    for line in text.strip().splitlines():
+        if line.strip():
+            return line.strip()[:200]
+    return None
 
 
-def run_fake_pipeline(outdir: Path) -> tuple[int, str]:
-    """Produce plausible artifacts without spending minutes rendering.
+def stage_input(claimed: dict, workdir: Path) -> Path:
+    """Write the job's payload into the working directory.
 
-    Used to exercise the queue plumbing on its own. The bytes are deliberately not
-    valid media -- the point is the claim/upload/complete path, not the video.
+    The filename is preserved because services may derive output names from it (the
+    SGF pipeline does). A service that consumes something other than text would read
+    its own input; `payload` is the general field, and jobs submitted through the
+    legacy SGF path populate it from sgf_text.
     """
-    outdir.mkdir(parents=True, exist_ok=True)
-    (outdir / "fake.mp4").write_bytes(b"\x00" * 4096)
-    (outdir / "fake.webp").write_bytes(b"\x01" * 1024)
-    (outdir / "fake.mp3").write_bytes(b"\x02" * 2048)
-    (outdir / "programme.html").write_text("<html>fake programme</html>")
-    return 0, "fake pipeline produced 4 artifacts"
+    name = claimed.get("sgf_name") or "input.txt"
+    path = workdir / Path(name).name
+    path.write_text(claimed.get("payload") or "", encoding="utf-8")
+    return path
 
 
-def collect_artifacts(outdir: Path):
-    """(kind, path) for every uploadable file the pipeline left behind."""
-    found = []
-    for p in sorted(outdir.rglob("*")):
-        if not p.is_file():
-            continue
-        if p.name == "pipeline.log":
-            continue
-        kind = KIND_BY_SUFFIX.get(p.suffix.lower())
-        if kind is None:
-            continue
-        # a job's main video is named after the SGF; anything .mp4 counts
-        found.append((kind, p))
-    return found
+def process_one(broker: Broker, plugin, claimed: dict, lease_seconds: int,
+                fake: bool, extra: list[str]) -> bool:
+    """Run one job through its service plugin.
 
-
-def process_one(broker: Broker, toolkit: Path | None, claimed: dict,
-                lease_seconds: int, fake: bool, extra: list[str]) -> bool:
+    All service knowledge is behind `plugin`: this function only stages input,
+    dispatches, uploads what came back, and reports.
+    """
     job_id = claimed["job_id"]
     token = claimed["lease_token"]
     log(f"claimed job {job_id} (attempt {claimed['attempts']}) "
-        f"dur={claimed['duration_s']}s formats={claimed['formats']}")
+        f"service={claimed.get('service')}")
 
     keeper = LeaseKeeper(broker, job_id, token, lease_seconds)
     keeper.start()
 
-    workdir = Path(tempfile.mkdtemp(prefix=f"sgfjob-{job_id[:8]}-"))
+    workdir = Path(tempfile.mkdtemp(prefix=f"job-{job_id[:8]}-"))
+    outdir = workdir / "out"
+    outdir.mkdir(parents=True, exist_ok=True)
     try:
-        sgf = workdir / (claimed.get("sgf_name") or "game.sgf")
-        if not sgf.suffix:
-            sgf = sgf.with_suffix(".sgf")
-        sgf.write_text(claimed["sgf_text"], encoding="utf-8")
-        outdir = workdir / "out"
-
+        stage_input(claimed, workdir)
         broker.progress(job_id, token, 5, "worker started")
+
+        def progress(pct: int, message: str) -> None:
+            # a plugin reporting progress is also a liveness signal, so a long
+            # render keeps its lease alive through this path
+            try:
+                broker.progress(job_id, token, max(5, min(95, pct)), message)
+            except LeaseLost:
+                raise
+            except BrokerError as e:
+                log(f"  progress update failed (continuing): {e}")
+
         if fake:
-            code, detail = run_fake_pipeline(outdir)
+            # each service owns its own stub, so the worker stays service-agnostic
+            fake_fn = getattr(plugin, "fake_run", None)
+            if fake_fn is None:
+                raise RuntimeError(
+                    f"service {plugin.name!r} has no fake_run(); --fake-pipeline "
+                    f"cannot be used with it"
+                )
+            produced = fake_fn(claimed.get("params") or {}, workdir, outdir, progress)
         else:
-            if toolkit is None:
-                raise RuntimeError("no --toolkit given and not --fake-pipeline")
-            code, detail = run_real_pipeline(toolkit, sgf, outdir, claimed, extra)
+            params = dict(claimed.get("params") or {})
+            if extra:
+                # pass-through flags only make sense for the pipeline; keep them
+                # available to plugins that want them
+                params.setdefault("_extra_args", extra)
+            produced = plugin.run(params, workdir, outdir, progress)
 
         if keeper.lost:
             raise LeaseLost(409, f"lease lost while running: {keeper.lost}")
 
-        if code != 0:
-            log(f"  pipeline failed (exit {code})")
-            broker.complete(job_id, token, success=False,
-                            error=f"pipeline exit {code}: {detail}")
-            return False
+        if not produced:
+            raise RuntimeError(f"service {plugin.name!r} produced no artifacts")
 
-        broker.progress(job_id, token, 85, "pipeline finished, uploading")
-
-        arts = collect_artifacts(outdir)
-        if not arts:
-            raise RuntimeError(f"pipeline produced no uploadable artifacts in {outdir}")
-        for kind, path in arts:
+        broker.progress(job_id, token, 90, "uploading artifacts")
+        for art in produced:
+            path = Path(art["path"])
             data = path.read_bytes()
             mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-            broker.upload(job_id, token, kind, path.name, data, mime)
-            log(f"  uploaded {kind:<15} {path.name:<28} {len(data)/1e6:7.2f} MB")
+            broker.upload(job_id, token, art["kind"], path.name, data, mime)
+            log(f"  uploaded {art['kind']:<16} {path.name:<30} {len(data)/1e6:7.2f} MB")
 
         broker.complete(job_id, token, success=True)
-        log(f"job {job_id} SUCCEEDED ({len(arts)} artifacts)")
+        log(f"job {job_id} SUCCEEDED ({len(produced)} artifacts)")
         return True
 
     except LeaseLost as e:
-        # another worker owns this job now; its result is the one that counts
         log(f"job {job_id} ABANDONED: {e}")
         return False
     except Exception as e:  # noqa: BLE001
@@ -351,7 +343,16 @@ def main() -> int:
     ap.add_argument("--toolkit", type=Path,
                     default=Path(os.environ.get(
                         "TOOLKIT_DIR",
-                        "/home/wei/playground/goGames/selfCommentary")))
+                        "/home/wei/playground/goGames/selfCommentary")),
+                    help="passed to plugins that need it (the SGF pipeline does)")
+    ap.add_argument("--service", default=None,
+                    help="run only this service. Default: run every plugin found, "
+                         "which is fine because a worker is bound to one service by "
+                         "the broker -- use this to restrict what is loaded")
+    ap.add_argument("--plugin-dir", action="append", default=[],
+                    help="extra directory of service plugins (repeatable)")
+    ap.add_argument("--list-services", action="store_true",
+                    help="show the plugins this worker would load, then exit")
     ap.add_argument("--lease-seconds", type=int, default=3600)
     ap.add_argument("--poll-interval", type=float, default=5.0)
     ap.add_argument("--once", action="store_true",
@@ -363,11 +364,32 @@ def main() -> int:
                     help="extra flag passed through to go_music_video.py")
     args = ap.parse_args()
 
+    # ---- load service plugins -------------------------------------------
+    # Fatal on error: a worker that starts with a broken plugin and then fails every
+    # job it claims is worse than one that refuses to start.
+    try:
+        plugins = load_plugins(
+            [Path(d) for d in args.plugin_dir] or None,
+            toolkit=args.toolkit, extra_args=list(args.extra_arg),
+        )
+    except PluginError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+
+    if args.service:
+        if args.service not in plugins:
+            print(f"error: --service {args.service!r} is not among the loaded "
+                  f"plugins: {sorted(plugins)}", file=sys.stderr)
+            return 2
+        plugins = {args.service: plugins[args.service]}
+
+    if args.list_services:
+        print(f"services this worker can run ({len(plugins)}):")
+        print(describe(plugins))
+        return 0
+
     if not args.key:
         print("error: no worker key; pass --key or set WORKER_KEY", file=sys.stderr)
-        return 2
-    if not args.fake_pipeline and not (args.toolkit / "go_music_video.py").is_file():
-        print(f"error: no go_music_video.py in {args.toolkit}", file=sys.stderr)
         return 2
 
     broker = Broker(args.broker, args.key)
@@ -386,6 +408,26 @@ def main() -> int:
 
     log(f"worker {args.name!r} -> {args.broker}"
         f"{' (FAKE PIPELINE)' if args.fake_pipeline else ''}")
+
+    # Publish each service's contract and bind this worker to it. This is the whole
+    # registration step: the broker learns the param schema (for validation and the
+    # frontend form) and which service to route here.
+    if len(plugins) > 1 and not args.service:
+        log(f"loaded {len(plugins)} services; publishing all of them. The broker "
+            f"binds a worker to ONE service (the last published wins) -- use "
+            f"--service to be explicit when several are loaded.")
+    for name, plugin in plugins.items():
+        try:
+            res = broker.publish_service(
+                name=plugin.name, title=plugin.title,
+                description=_first_line(plugin.__doc__),
+                param_schema=plugin.param_schema,
+                artifact_kinds=plugin.artifact_kinds,
+            )
+            log(f"  published service {res.get('service')!r} v{res.get('version')}")
+        except BrokerError as e:
+            print(f"error: could not publish service {name!r}: {e}", file=sys.stderr)
+            return 2
 
     processed = 0
     idle = 0
@@ -414,7 +456,22 @@ def main() -> int:
             continue
 
         idle = 0
-        process_one(broker, args.toolkit, claimed, args.lease_seconds,
+        service = claimed.get("service") or "sgf_video"
+        plugin = plugins.get(service)
+        if plugin is None:
+            # The broker routed us a job for a service we do not have. That means the
+            # two disagree about what this worker runs, so fail the job loudly rather
+            # than reporting a misleading success.
+            log(f"claimed job for unknown service {service!r}; failing it "
+                f"(this worker runs {sorted(plugins)})")
+            try:
+                broker.complete(claimed["job_id"], claimed["lease_token"],
+                                success=False,
+                                error=f"worker does not implement service {service!r}")
+            except BrokerError as e:
+                log(f"  could not report it: {e}")
+            continue
+        process_one(broker, plugin, claimed, args.lease_seconds,
                     args.fake_pipeline, list(args.extra_arg))
         processed += 1
         try:

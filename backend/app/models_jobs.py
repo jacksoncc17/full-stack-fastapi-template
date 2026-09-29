@@ -383,8 +383,18 @@ class JobClaimed(SQLModel):
     lease_token: uuid.UUID
     lease_expires_at: datetime
     attempts: int
-    sgf_text: str
-    sgf_name: str
+
+    # `service` decides which plugin the worker dispatches to, and `params` is what
+    # that plugin reads. Without these the worker cannot tell one job from another
+    # and would have to guess.
+    service: str = DEFAULT_SERVICE
+    params: dict | None = None
+
+    # `payload` is the general input; for the SGF service it is the game record. The
+    # legacy sgf_* fields remain so an older worker keeps working.
+    payload: str | None = None
+    sgf_text: str = ""
+    sgf_name: str = "input.txt"
     title: str | None = None
     duration_s: float
     bpm: float | None = None

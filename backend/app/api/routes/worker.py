@@ -56,6 +56,40 @@ def get_current_worker(
 CurrentWorker = Annotated[Worker, Depends(get_current_worker)]
 
 
+def _claimed(job) -> JobClaimed:
+    """Build the worker's view of a job.
+
+    Params are derived the same way submissions are: a job submitted through the
+    legacy flat fields has `params` populated by the submit route, but a row written
+    before that shim existed does not, so fall back to the flat fields rather than
+    handing the worker an empty dict.
+    """
+    params = job.params
+    if not params:
+        params = {f: getattr(job, f) for f in (
+            "duration_s", "bpm", "musical_key", "time_sig", "seed", "visits",
+            "formats")}
+    return JobClaimed(
+        job_id=job.id,
+        lease_token=job.lease_token,
+        lease_expires_at=job.lease_expires_at,
+        attempts=job.attempts,
+        service=job.service,
+        params=params,
+        payload=job.sgf_text,
+        sgf_text=job.sgf_text,
+        sgf_name=job.sgf_name,
+        title=job.title,
+        duration_s=job.duration_s,
+        bpm=job.bpm,
+        musical_key=job.musical_key,
+        time_sig=job.time_sig,
+        seed=job.seed,
+        visits=job.visits,
+        formats=job.formats,
+    )
+
+
 @router.post("/claim", response_model=JobClaimed | None)
 def claim(
     session: SessionDep, worker: CurrentWorker, req: JobClaimRequest | None = None
@@ -72,22 +106,7 @@ def claim(
     )
     if job is None:
         return None
-    return JobClaimed(
-        job_id=job.id,
-        lease_token=job.lease_token,  # type: ignore[arg-type]
-        lease_expires_at=job.lease_expires_at,  # type: ignore[arg-type]
-        attempts=job.attempts,
-        sgf_text=job.sgf_text,
-        sgf_name=job.sgf_name,
-        title=job.title,
-        duration_s=job.duration_s,
-        bpm=job.bpm,
-        musical_key=job.musical_key,
-        time_sig=job.time_sig,
-        seed=job.seed,
-        visits=job.visits,
-        formats=job.formats,
-    )
+    return _claimed(job)
 
 
 @router.post("/jobs/{job_id}/progress", response_model=JobEventPublic)
@@ -122,14 +141,7 @@ def renew(
         )
     except cj.LeaseLost as e:
         raise HTTPException(status_code=409, detail=str(e))
-    return JobClaimed(
-        job_id=job.id, lease_token=job.lease_token,  # type: ignore[arg-type]
-        lease_expires_at=job.lease_expires_at,  # type: ignore[arg-type]
-        attempts=job.attempts, sgf_text=job.sgf_text, sgf_name=job.sgf_name,
-        title=job.title, duration_s=job.duration_s, bpm=job.bpm,
-        musical_key=job.musical_key, time_sig=job.time_sig, seed=job.seed,
-        visits=job.visits, formats=job.formats,
-    )
+    return _claimed(job)
 
 
 @router.post("/jobs/{job_id}/artifacts", response_model=ArtifactPublic)
