@@ -1,0 +1,38 @@
+# systemd unit for the LAN worker.
+#
+#   sudo cp worker.service /etc/systemd/system/
+#   sudo systemctl edit worker     # set WORKER_KEY and paths
+#   sudo systemctl enable --now worker
+#
+# Why a unit rather than nohup: the worker must survive reboots and network
+# changes, and Restart=always is what turns a crash into a few seconds of downtime
+# rather than a silently stalled queue. The worker itself now retries broker
+# outages, but a unit still covers process death and machine restarts.
+[Unit]
+Description=SGF video render worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wei
+WorkingDirectory=/home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template
+
+# Point these at your deployment. WORKER_KEY is the value returned once by
+# POST /api/v1/admin/workers/ -- it cannot be retrieved again.
+Environment=WORKER_KEY=REPLACE_ME
+Environment=BROKER_URL=https://broker.example.com/api/v1
+Environment=TOOLKIT_DIR=/home/wei/playground/goGames/selfCommentary
+Environment=WORKER_NAME=lan-worker-1
+
+ExecStart=/usr/bin/python3 worker.py \
+    --broker ${BROKER_URL} --key ${WORKER_KEY} \
+    --name ${WORKER_NAME} --toolkit ${TOOLKIT_DIR}
+
+# A render holds a CPU for minutes; give it room and restart on any exit.
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

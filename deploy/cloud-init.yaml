@@ -1,0 +1,33 @@
+#cloud-config
+# DigitalOcean droplet user-data: installs Docker and prepares the app directory.
+# Paste this into the droplet's "User data" field at creation time.
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - ufw
+
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  # A *host* firewall, separate from DigitalOcean's cloud firewall. Only 22/80/443
+  # should ever be open; Postgres in particular must NOT be reachable from outside
+  # the compose network.
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - mkdir -p /opt/app
+  - chown root:root /opt/app
+  - |
+    cat > /opt/app/README <<'MSG'
+    Next:
+      cd /opt/app && git clone <your repo> .
+      cd full-stack-fastapi-template
+      cp deploy/env.production.example .env   # then fill in the secrets
+      docker compose -f compose.yml -f compose.deploy.yml up -d --build
+    MSG
+
+final_message: "Docker installed. Clone the repo into /opt/app and follow deploy/README.md."
