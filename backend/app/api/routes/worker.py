@@ -19,9 +19,11 @@ from fastapi.responses import Response
 from sqlmodel import Session
 
 from app import crud_jobs as cj
+from app import param_schema
 from app.api.deps import SessionDep
 from app.models_jobs import (
     Artifact,
+    ServicePublish,
     ArtifactPublic,
     Job,
     JobClaimed,
@@ -170,6 +172,43 @@ def complete(
     except cj.LeaseLost as e:
         raise HTTPException(status_code=409, detail=str(e))
     return {"job_id": str(job.id), "status": job.status.value}
+
+
+@router.post("/services", response_model=dict)
+def publish_service(
+    session: SessionDep, worker: CurrentWorker, body: ServicePublish
+) -> Any:
+    """Publish the contract of the service this worker runs, and bind to it.
+
+    Called by a worker at startup. The broker stores the contract for validation and
+    for the frontend form, but never runs the service -- the implementation lives in
+    the worker. Binding the worker at the same time is what makes routing work: a
+    worker claims only jobs for the service it announced.
+    """
+    if body.param_schema:
+        try:
+            param_schema.check_schema(body.param_schema)
+        except param_schema.SchemaError as e:
+            # fail at registration, not at submission: a schema we only partly
+            # enforce would make callers believe validation had happened
+            raise HTTPException(
+                status_code=422,
+                detail=f"unsupported param_schema: {e}",
+            )
+    svc = cj.upsert_service(
+        session=session, name=body.name, title=body.title,
+        description=body.description, param_schema=body.param_schema,
+        artifact_kinds=body.artifact_kinds, version=body.version,
+    )
+    cj.set_worker_service(session=session, worker_id=worker.id, service=body.name)
+    return {"service": svc.name, "version": svc.version, "title": svc.title}
+
+
+@router.get("/services", response_model=dict)
+def my_service(session: SessionDep, worker: CurrentWorker) -> Any:
+    """What this worker is bound to -- useful when a worker behaves unexpectedly."""
+    return {"worker": worker.name,
+            "service": cj.get_worker_service(session=session, worker_id=worker.id)}
 
 
 @router.post("/heartbeat", response_model=dict)

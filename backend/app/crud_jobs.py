@@ -30,13 +30,16 @@ from app import artifact_store
 logger = logging.getLogger(__name__)
 from app.core.config import settings
 from app.models_jobs import (
+    DEFAULT_SERVICE,
     TERMINAL_STATUSES,
     Artifact,
     ArtifactBlob,
     Job,
     JobEvent,
     JobStatus,
+    Service,
     Worker,
+    WorkerService,
 )
 
 
@@ -70,6 +73,57 @@ def get_worker_by_key(*, session: Session, api_key: str) -> Worker | None:
     if worker and not worker.is_active:
         return None
     return worker
+
+
+def get_worker_service(*, session: Session, worker_id: uuid.UUID) -> str | None:
+    row = session.get(WorkerService, worker_id)
+    return row.service if row else None
+
+
+def set_worker_service(
+    *, session: Session, worker_id: uuid.UUID, service: str
+) -> WorkerService:
+    """Assign (or reassign) a worker's service."""
+    row = session.get(WorkerService, worker_id)
+    if row is None:
+        row = WorkerService(worker_id=worker_id, service=service)
+    else:
+        row.service = service
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def upsert_service(
+    *, session: Session, name: str, title: str, description: str | None = None,
+    param_schema: dict | None = None, artifact_kinds: list | None = None,
+    version: str = "1",
+) -> Service:
+    """Record or refresh a service contract published by a worker.
+
+    Publishing a different `version` is not an error: it is how a deployed worker
+    upgrades its own contract. Jobs already queued keep the `service_version` they
+    were submitted against, so a validation change cannot retroactively invalidate
+    work that is already in the queue.
+    """
+    svc = session.get(Service, name)
+    if svc is None:
+        svc = Service(name=name)
+    svc.title = title
+    svc.description = description
+    svc.param_schema = param_schema
+    svc.artifact_kinds = artifact_kinds
+    svc.version = version
+    svc.updated_at = get_datetime_utc()
+    session.add(svc)
+    session.commit()
+    session.refresh(svc)
+    return svc
+
+
+def list_services(*, session: Session) -> list[Service]:
+    return list(session.exec(select(Service).order_by(col(Service.name))).all())
 
 
 def touch_worker(
@@ -210,9 +264,19 @@ def claim_job(
     now = get_datetime_utc()
     reap_expired_leases(session=session, now=now)
 
+    # ROUTING. A worker is dedicated to one service, so it may only claim jobs for
+    # that service. Without this filter every worker takes every job and a worker
+    # for the wrong service claims work it cannot run -- it then either fails the
+    # job or, worse, "succeeds" at producing the wrong artifact.
+    #
+    # A worker with no WorkerService row is treated as unassigned and claims only
+    # the default service, so existing deployments keep working unchanged.
+    service = get_worker_service(session=session, worker_id=worker.id) or DEFAULT_SERVICE
+
     statement = (
         select(Job)
         .where(Job.status == JobStatus.queued)
+        .where(Job.service == service)
         .order_by(col(Job.created_at))
         .limit(1)
         .with_for_update(skip_locked=True)

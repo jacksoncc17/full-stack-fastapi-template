@@ -47,6 +47,51 @@ def get_datetime_utc() -> datetime:
     return datetime.now(UTC)
 
 
+# Every job belongs to exactly one service, and a worker is dedicated to exactly
+# one service. The default keeps the existing SGF-video pipeline working without
+# every caller having to name it.
+DEFAULT_SERVICE = "sgf_video"
+
+
+class Service(SQLModel, table=True):
+    """A published service contract.
+
+    The BROKER NEVER RUNS SERVICE CODE. It only needs to know the contract so it can
+    validate submissions and render a form: this table is what a worker publishes
+    about itself at registration, not a copy of the implementation.
+
+    Populated by workers (`POST /worker/services`), so a service exists exactly when
+    a worker able to run it has connected. `param_schema` is JSON Schema and drives
+    both validation and the frontend form, which is why it belongs here rather than
+    being hard-coded per service.
+    """
+
+    name: str = Field(primary_key=True, max_length=64)
+    title: str = Field(max_length=128)
+    description: str | None = Field(default=None, sa_column=Column(Text))
+    param_schema: dict | None = Field(default=None, sa_column=Column(JSON))
+    artifact_kinds: list | None = Field(default=None, sa_column=Column(JSON))
+    version: str = Field(default="1", max_length=32)
+    updated_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class WorkerService(SQLModel, table=True):
+    """Which service a worker serves. One row per worker: a worker is dedicated.
+
+    Deliberately a table rather than a column on `worker` so that allowing a worker
+    to serve several services later is a change to the claim query alone, not a
+    migration of the worker table.
+    """
+
+    worker_id: uuid.UUID = Field(
+        foreign_key="worker.id", primary_key=True, ondelete="CASCADE"
+    )
+    service: str = Field(foreign_key="service.name", max_length=64, index=True)
+
+
 class JobStatus(str, Enum):
     """Job lifecycle.
 
@@ -93,8 +138,22 @@ class Worker(SQLModel, table=True):
 
 
 class JobBase(SQLModel):
-    """Request parameters. These mirror the flags of go_music_video.py so a
-    request can be turned into a pipeline invocation without translation."""
+    """Request parameters.
+
+    `service` + `params` are the general form: params is whatever the service's
+    `param_schema` describes, and the broker treats it as opaque data it validates
+    but does not interpret.
+
+    The fields below are LEGACY: they are the SGF-video pipeline's own parameters,
+    kept so existing clients, the generated TypeScript client and the current submit
+    form keep working. A new service supplies `params` instead and leaves these at
+    their defaults. They are never read by the broker -- only echoed -- so nothing
+    has to change here when a service with different parameters is added.
+    """
+
+    service: str = Field(default=DEFAULT_SERVICE, max_length=64, index=True)
+    params: dict | None = Field(default=None, sa_column=Column(JSON))
+    service_version: str | None = Field(default=None, max_length=32)
 
     title: str | None = Field(default=None, max_length=255)
     duration_s: float = Field(default=180.0, gt=0, le=480.0)
@@ -168,7 +227,22 @@ class Job(JobBase, table=True):
 
 
 class JobCreate(SQLModel):
-    """What a client submits. `sgf_text` is validated by the route."""
+    """What a client submits.
+
+    Two ways to fill this in, and they coexist on purpose:
+
+    * **new services** set `service` and put everything the service needs in
+      `params`, which is validated against that service's published schema
+    * **the existing SGF-video client** omits `service`, sets the legacy fields
+      below, and the route derives `params` from them
+
+    The second path is why the legacy fields were not deleted: it keeps the current
+    API, the generated TypeScript client and the existing submit form working
+    without a breaking change.
+    """
+
+    service: str = Field(default=DEFAULT_SERVICE, max_length=64)
+    params: dict | None = None
 
     sgf_text: str
     sgf_name: str = Field(default="game.sgf", max_length=255)
@@ -339,6 +413,37 @@ class JobComplete(SQLModel):
     lease_token: uuid.UUID
     success: bool = True
     error: str | None = Field(default=None, max_length=8000)
+
+
+class ServicePublish(SQLModel):
+    """A worker announcing the service it runs.
+
+    `param_schema` is JSON Schema. The broker validates submissions against it and
+    the frontend renders a form from it, so it is the single place a service
+    describes its own parameters.
+    """
+
+    name: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
+    param_schema: dict | None = None
+    artifact_kinds: list[str] | None = None
+    version: str = Field(default="1", max_length=32)
+
+
+class ServicePublic(SQLModel):
+    name: str
+    title: str
+    description: str | None = None
+    param_schema: dict | None = None
+    artifact_kinds: list | None = None
+    version: str
+    updated_at: datetime | None = None
+
+
+class ServicesPublic(SQLModel):
+    data: list[ServicePublic]
+    count: int
 
 
 class WorkerHeartbeat(SQLModel):

@@ -28,7 +28,9 @@ from app.models_jobs import (  # noqa: F401
     ArtifactBlob,
     Job,
     JobEvent,
+    Service,
     Worker,
+    WorkerService,
 )
 from app.core.config import settings # noqa
 

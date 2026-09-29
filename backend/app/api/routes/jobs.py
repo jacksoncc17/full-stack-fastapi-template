@@ -15,8 +15,11 @@ from fastapi.responses import Response
 from sqlmodel import col, func, select
 
 from app import crud_jobs as cj
+from app import param_schema
 from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
 from app.models_jobs import (
+    DEFAULT_SERVICE,
+    Service,
     Artifact,
     ArtifactPublic,
     Job,
@@ -26,6 +29,8 @@ from app.models_jobs import (
     JobPublic,
     JobsPublic,
     JobStatus,
+    ServicePublic,
+    ServicesPublic,
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -72,14 +77,62 @@ def _own_job(session: SessionDep, user: CurrentUser, job_id: uuid.UUID) -> Job:
     return job
 
 
+# The legacy fields, in the order they are turned into `params` for the default
+# service. Keeping this mapping in one place means the shim and the schema cannot
+# drift apart silently.
+LEGACY_PARAM_FIELDS = (
+    "duration_s", "bpm", "musical_key", "time_sig", "seed", "visits", "formats",
+)
+
+
+def _params_for(job_in: JobCreate, session: SessionDep) -> dict:
+    """Resolve a submission to (service, params) and validate against the schema.
+
+    A service whose schema is published gets real validation at submit time, so a
+    bad request is rejected with a useful message instead of sitting in the queue
+    until a worker picks it and fails.
+
+    A service with NO published schema is accepted unvalidated. That is deliberate:
+    jobs are often submitted before the first worker has ever connected, and
+    rejecting them would make the queue unusable at bring-up.
+    """
+    if job_in.params:
+        params = dict(job_in.params)
+    else:
+        # legacy client: derive params from the flat fields
+        params = {f: getattr(job_in, f) for f in LEGACY_PARAM_FIELDS}
+
+    svc = session.get(Service, job_in.service)
+    if svc is not None and svc.param_schema:
+        try:
+            param_schema.validate(instance=params, schema=svc.param_schema)
+        except param_schema.SchemaError as e:
+            # the SERVICE author's bug, not the submitter's
+            raise HTTPException(status_code=500,
+                                detail=f"service {job_in.service!r} published an "
+                                       f"unsupported schema: {e}")
+        except param_schema.ValidationError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        params = param_schema.apply_defaults(params, svc.param_schema)
+    return params
+
+
 @router.post("/", response_model=JobPublic)
 def submit_job(
     *, session: SessionDep, current_user: CurrentUser, job_in: JobCreate
 ) -> Any:
-    """Queue a new render request."""
-    _validate_sgf(job_in.sgf_text)
+    """Queue a new job."""
+    # SGF validation only applies to the service that consumes an SGF. A new service
+    # must not be forced through it, or the plugin point is not real.
+    if job_in.service == DEFAULT_SERVICE:
+        _validate_sgf(job_in.sgf_text)
+    params = _params_for(job_in, session)
+    svc = session.get(Service, job_in.service)
     job = Job(
         owner_id=current_user.id,
+        service=job_in.service,
+        params=params,
+        service_version=svc.version if svc else None,
         sgf_text=job_in.sgf_text,
         sgf_sha256=hashlib.sha256(job_in.sgf_text.encode()).hexdigest(),
         sgf_name=job_in.sgf_name,
@@ -109,6 +162,7 @@ async def submit_job_file(
     session: SessionDep,
     current_user: CurrentUser,
     file: UploadFile,
+    service: str = DEFAULT_SERVICE,
     title: str | None = None,
     duration_s: float = 180.0,
     bpm: float | None = 69.0,
@@ -124,6 +178,7 @@ async def submit_job_file(
         raise HTTPException(status_code=413, detail="SGF is too large")
     text = raw.decode("utf-8", errors="replace")
     job_in = JobCreate(
+        service=service,
         sgf_text=text,
         sgf_name=file.filename or "game.sgf",
         title=title, duration_s=duration_s, bpm=bpm, musical_key=musical_key,
@@ -158,6 +213,21 @@ def read_jobs(
     ).all()
     return JobsPublic(
         data=[JobPublic.model_validate(j) for j in jobs], count=count
+    )
+
+
+@router.get("/services", response_model=ServicesPublic)
+def read_services(session: SessionDep, current_user: CurrentUser) -> Any:
+    """Services a job can be submitted to.
+
+    Services appear here once a worker has published them, so an empty list means no
+    worker is connected -- which is the same condition the dashboard flags as
+    "stalled", and worth showing on a submission form (do not offer a service whose
+    worker does not exist).
+    """
+    svcs = cj.list_services(session=session)
+    return ServicesPublic(
+        data=[ServicePublic.model_validate(x) for x in svcs], count=len(svcs)
     )
 
 
