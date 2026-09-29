@@ -20,6 +20,7 @@ import { Route as LayoutItemsRouteImport } from './routes/_layout/items'
 import { Route as LayoutJobsRouteImport } from './routes/_layout/jobs'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutSubmitRouteImport } from './routes/_layout/submit'
+import { Route as LayoutWorkersRouteImport } from './routes/_layout/workers'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 
 const LayoutRoute = LayoutRouteImport.update({
@@ -76,6 +77,11 @@ const LayoutSubmitRoute = LayoutSubmitRouteImport.update({
   path: '/submit',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutWorkersRoute = LayoutWorkersRouteImport.update({
+  id: '/workers',
+  path: '/workers',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
   id: '/oauth/callback',
   path: '/oauth/callback',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof LayoutJobsRoute
   '/settings': typeof LayoutSettingsRoute
   '/submit': typeof LayoutSubmitRoute
+  '/workers': typeof LayoutWorkersRoute
   '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof LayoutJobsRoute
   '/settings': typeof LayoutSettingsRoute
   '/submit': typeof LayoutSubmitRoute
+  '/workers': typeof LayoutWorkersRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof LayoutIndexRoute
 }
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/_layout/jobs': typeof LayoutJobsRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/submit': typeof LayoutSubmitRoute
+  '/_layout/workers': typeof LayoutWorkersRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/_layout/': typeof LayoutIndexRoute
 }
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/settings'
     | '/submit'
+    | '/workers'
     | '/oauth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/settings'
     | '/submit'
+    | '/workers'
     | '/oauth/callback'
     | '/'
   id:
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/_layout/jobs'
     | '/_layout/settings'
     | '/_layout/submit'
+    | '/_layout/workers'
     | '/oauth/callback'
     | '/_layout/'
   fileRoutesById: FileRoutesById
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSubmitRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/workers': {
+      id: '/_layout/workers'
+      path: '/workers'
+      fullPath: '/workers'
+      preLoaderRoute: typeof LayoutWorkersRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/oauth/callback': {
       id: '/oauth/callback'
       path: '/oauth/callback'
@@ -270,6 +289,7 @@ interface LayoutRouteChildren {
   LayoutJobsRoute: typeof LayoutJobsRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutSubmitRoute: typeof LayoutSubmitRoute
+  LayoutWorkersRoute: typeof LayoutWorkersRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
 }
 
@@ -279,6 +299,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutJobsRoute: LayoutJobsRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutSubmitRoute: LayoutSubmitRoute,
+  LayoutWorkersRoute: LayoutWorkersRoute,
   LayoutIndexRoute: LayoutIndexRoute,
 }
 

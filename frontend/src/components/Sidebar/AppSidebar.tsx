@@ -9,7 +9,7 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
-import { FileVideo, PlusCircle } from "lucide-react"
+import { FileVideo, PlusCircle, Server } from "lucide-react"
 
 import { type Item, Main } from "./Main"
 import { User } from "./User"
@@ -25,7 +25,11 @@ export function AppSidebar() {
   const { user: currentUser } = useAuth()
 
   const items = currentUser?.is_superuser
-    ? [...baseItems, { icon: Users, title: "Admin", path: "/admin" }]
+    ? [
+        ...baseItems,
+        { icon: Server, title: "Workers", path: "/workers" },
+        { icon: Users, title: "Admin", path: "/admin" },
+      ]
     : baseItems
 
   return (

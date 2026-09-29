@@ -363,3 +363,47 @@ Two related traps in the same area:
   a 7-character password is not.
 * `init_data` is idempotent — it looks the user up by email first — so re-running
   it is safe.
+
+## Worker liveness on the dashboard
+
+A queued job with no worker and a job that is merely slow look identical on the
+dashboard: `queued`, 0%, no error. Nothing used to distinguish them, so a request
+could sit forever with no indication why.
+
+`GET /jobs/workers-status` (any authenticated user — only aggregate numbers, no
+worker names, ids or keys):
+
+```json
+{"workers_registered": 10, "workers_online": 0, "offline_after_minutes": 3,
+ "pending_jobs": 1, "oldest_queued_at": "...", "stalled": true}
+```
+
+`stalled` is the cue the dashboard uses: **work is waiting and nothing is
+heartbeating to take it.** When it is true the jobs page shows a red banner
+explaining that the jobs will not run, how many are waiting, and how many workers
+are registered but silent.
+
+A worker counts as online if `is_active` and its `last_heartbeat_at` is within
+`OFFLINE_AFTER_MINUTES` (3). Workers heartbeat on every claim, so idle-but-alive
+workers still register — the gap between polls is seconds, and 3 minutes is
+generous. Verified by ageing heartbeats: with fresh heartbeats and 1 pending job
+`stalled=false`; after pushing every heartbeat 10 minutes back, `online=0`,
+`stalled=true`.
+
+`GET /admin/workers/list` gives the per-worker view for the admin page, including
+`seconds_since_heartbeat` and `online`. The plain `GET /admin/workers/` returns the
+public shape, which has no heartbeat and so cannot tell a healthy worker from a
+dead one — that is why the detail endpoint exists.
+
+### Frontend
+
+* `/jobs` — the liveness banner plus a quiet one-line status ("N workers online ·
+  M pending") when nothing is wrong
+* `/workers` (admin only, in the sidebar) — table of workers with online/offline/
+  disabled state, last heartbeat, capabilities, enable/disable, and a register
+  dialog that keeps the one-time API key on screen with a copy button
+
+The register dialog is deliberately a two-step dialog: it shows the name field,
+then swaps to the issued key with an explicit warning that it cannot be shown
+again. A worker that closes it without copying has to be re-registered (which
+rotates the key).

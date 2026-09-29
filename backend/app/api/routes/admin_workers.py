@@ -8,6 +8,7 @@ that would let anyone drain the queue or inject results.
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,6 +47,34 @@ def register_worker(
         id=worker.id, name=worker.name, api_key=api_key,
         created_at=worker.created_at,
     )
+
+
+@router.get("/list", response_model=dict)
+def read_workers_detail(session: SessionDep, _admin: SuperUser) -> Any:
+    """Workers with liveness information for the admin view.
+
+    The plain list endpoint returns the public shape (no heartbeat), which is not
+    enough to tell a healthy worker from a dead one.
+    """
+    from app.api.routes.jobs import OFFLINE_AFTER_MINUTES
+
+    now = datetime.now(UTC)
+    out = []
+    for w in cj.list_workers(session=session):
+        hb = w.last_heartbeat_at
+        if hb is not None and hb.tzinfo is None:
+            hb = hb.replace(tzinfo=UTC)
+        online = bool(w.is_active and hb
+                      and hb > now - timedelta(minutes=OFFLINE_AFTER_MINUTES))
+        out.append({
+            "id": str(w.id), "name": w.name, "is_active": w.is_active,
+            "capabilities": w.capabilities,
+            "last_heartbeat_at": hb.isoformat() if hb else None,
+            "seconds_since_heartbeat": int((now - hb).total_seconds()) if hb else None,
+            "online": online,
+        })
+    return {"data": out, "count": len(out),
+            "offline_after_minutes": OFFLINE_AFTER_MINUTES}
 
 
 @router.get("/", response_model=WorkersPublic)

@@ -1608,6 +1608,26 @@ export type jobsSubmitJobFileResponses = {
 
 export type jobsSubmitJobFileResponse = jobsSubmitJobFileResponses[keyof jobsSubmitJobFileResponses];
 
+export type jobsWorkersStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/jobs/workers-status';
+};
+
+export type jobsWorkersStatusResponses = {
+    /**
+     * Response Jobs-Workers Status
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type jobsWorkersStatusResponse = jobsWorkersStatusResponses[keyof jobsWorkersStatusResponses];
+
 export type jobsJobsSummaryData = {
     body?: never;
     path?: never;
@@ -2147,6 +2167,26 @@ export type adminRegisterWorkerResponses = {
 };
 
 export type adminRegisterWorkerResponse = adminRegisterWorkerResponses[keyof adminRegisterWorkerResponses];
+
+export type adminReadWorkersDetailData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/workers/list';
+};
+
+export type adminReadWorkersDetailResponses = {
+    /**
+     * Response Admin-Read Workers Detail
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type adminReadWorkersDetailResponse = adminReadWorkersDetailResponses[keyof adminReadWorkersDetailResponses];
 
 export type adminSetActiveData = {
     body?: never;

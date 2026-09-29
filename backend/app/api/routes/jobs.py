@@ -33,6 +33,10 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 # An SGF is a small text file. Refuse anything enormous before it reaches the DB.
 MAX_SGF_BYTES = 2 * 1024 * 1024
 
+# A worker heartbeats on every claim, so this window is generous; it only needs to
+# be longer than the gap between polls on an idle queue.
+OFFLINE_AFTER_MINUTES = 3
+
 
 def _validate_sgf(text: str) -> None:
     """Cheap structural check. This is not a full SGF parser -- the pipeline does
@@ -155,6 +159,51 @@ def read_jobs(
     return JobsPublic(
         data=[JobPublic.model_validate(j) for j in jobs], count=count
     )
+
+
+@router.get("/workers-status", response_model=dict)
+def workers_status(session: SessionDep, current_user: CurrentUser) -> Any:
+    """Is anything actually able to process the queue?
+
+    Deliberately available to any authenticated user, not just admins, because a
+    queued job with no worker and a stalled job look identical on the dashboard --
+    this is what distinguishes them. It exposes only aggregate liveness: no worker
+    names, ids or keys.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from sqlmodel import col, select
+
+    from app.models_jobs import Job, Worker
+
+    now = datetime.now(UTC)
+    workers = session.exec(select(Worker).where(Worker.is_active)).all()
+    fresh = [w for w in workers
+             if w.last_heartbeat_at is not None
+             and (w.last_heartbeat_at.replace(tzinfo=UTC)
+                  if w.last_heartbeat_at.tzinfo is None
+                  else w.last_heartbeat_at) > now - timedelta(minutes=OFFLINE_AFTER_MINUTES)]
+
+    pending = session.exec(
+        select(func.count()).select_from(Job)
+        .where(col(Job.status).in_([JobStatus.queued, JobStatus.claimed,
+                                    JobStatus.running]))
+    ).one()
+    oldest = session.exec(
+        select(Job).where(Job.status == JobStatus.queued)
+        .order_by(col(Job.created_at)).limit(1)
+    ).first()
+
+    return {
+        "workers_registered": len(workers),
+        "workers_online": len(fresh),
+        "offline_after_minutes": OFFLINE_AFTER_MINUTES,
+        "pending_jobs": pending,
+        "oldest_queued_at": oldest.created_at.isoformat()
+        if oldest and oldest.created_at else None,
+        # the dashboard's cue: work waiting, nobody to do it
+        "stalled": pending > 0 and len(fresh) == 0,
+    }
 
 
 @router.get("/summary", response_model=dict)

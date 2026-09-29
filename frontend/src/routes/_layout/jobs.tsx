@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link as RouterLink } from "@tanstack/react-router"
-import { Download, RefreshCw } from "lucide-react"
+import { Download, RefreshCw, TriangleAlert } from "lucide-react"
 
 import { JobsService } from "@/client"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +39,14 @@ function jobsQueryOptions() {
   }
 }
 
+function workersStatusQueryOptions() {
+  return {
+    queryFn: async () => (await JobsService.workersStatus()).data as any,
+    refetchInterval: 10000,
+    queryKey: ["jobs", "workers-status"],
+  }
+}
+
 function summaryQueryOptions() {
   return {
     queryFn: async () => (await JobsService.jobsSummary()).data,
@@ -53,6 +61,7 @@ function JobsDashboard() {
 
   const { data, isLoading } = useQuery(jobsQueryOptions())
   const { data: summary } = useQuery(summaryQueryOptions())
+  const { data: workers } = useQuery(workersStatusQueryOptions())
 
   const cancel = useMutation({
     mutationFn: (id: string) => JobsService.cancelJob({ path: { job_id: id } }),
@@ -87,6 +96,38 @@ function JobsDashboard() {
           </RouterLink>
         </div>
       </div>
+
+      {workers?.stalled ? (
+        <div className="border-destructive/40 bg-destructive/10 flex items-start gap-3 rounded-lg border p-4">
+          <TriangleAlert className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium">
+              No worker is online, so these jobs will not run.
+            </p>
+            <p className="text-muted-foreground mt-1">
+              {workers.pending_jobs} job
+              {workers.pending_jobs === 1 ? "" : "s"} waiting
+              {workers.workers_registered === 0
+                ? " and no worker has ever been registered."
+                : `; ${workers.workers_registered} registered but none has sent a heartbeat in ${workers.offline_after_minutes} minutes.`}{" "}
+              Start one with <code>python3 worker.py --broker ... --key ...</code>
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              workers?.workers_online ? "bg-emerald-500" : "bg-zinc-400"
+            }`}
+          />
+          {workers?.workers_online ?? 0} worker
+          {workers?.workers_online === 1 ? "" : "s"} online
+          {workers?.pending_jobs
+            ? ` · ${workers.pending_jobs} pending`
+            : ""}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {["queued", "claimed", "running", "succeeded", "failed", "canceled"].map(

@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { adminReadWorkersData, adminReadWorkersResponses, adminRegisterWorkerData, adminRegisterWorkerErrors, adminRegisterWorkerResponses, adminSetActiveData, adminSetActiveErrors, adminSetActiveResponses, adminWorkerJobsData, adminWorkerJobsErrors, adminWorkerJobsResponses, itemsCreateItemData, itemsCreateItemErrors, itemsCreateItemResponses, itemsDeleteItemData, itemsDeleteItemErrors, itemsDeleteItemResponses, itemsReadItemData, itemsReadItemErrors, itemsReadItemResponses, itemsReadItemsData, itemsReadItemsErrors, itemsReadItemsResponses, itemsUpdateItemData, itemsUpdateItemErrors, itemsUpdateItemResponses, jobsCancelJobData, jobsCancelJobErrors, jobsCancelJobResponses, jobsDownloadArtifactData, jobsDownloadArtifactErrors, jobsDownloadArtifactResponses, jobsJobsSummaryData, jobsJobsSummaryResponses, jobsReadJobArtifactsData, jobsReadJobArtifactsErrors, jobsReadJobArtifactsResponses, jobsReadJobData, jobsReadJobErrors, jobsReadJobEventsData, jobsReadJobEventsErrors, jobsReadJobEventsResponses, jobsReadJobResponses, jobsReadJobsData, jobsReadJobsErrors, jobsReadJobsResponses, jobsReapData, jobsReapResponses, jobsSubmitJobData, jobsSubmitJobErrors, jobsSubmitJobFileData, jobsSubmitJobFileErrors, jobsSubmitJobFileResponses, jobsSubmitJobResponses, loginGoogleCallbackData, loginGoogleCallbackErrors, loginGoogleCallbackResponses, loginGoogleLoginData, loginGoogleLoginResponses, loginGoogleStatusData, loginGoogleStatusResponses, loginLoginAccessTokenData, loginLoginAccessTokenErrors, loginLoginAccessTokenResponses, loginRecoverPasswordData, loginRecoverPasswordErrors, loginRecoverPasswordHtmlContentData, loginRecoverPasswordHtmlContentErrors, loginRecoverPasswordHtmlContentResponses, loginRecoverPasswordResponses, loginResetPasswordData, loginResetPasswordErrors, loginResetPasswordResponses, loginTestTokenData, loginTestTokenResponses, privateCreateUserData, privateCreateUserErrors, privateCreateUserResponses, usersCreateUserData, usersCreateUserErrors, usersCreateUserResponses, usersDeleteUserData, usersDeleteUserErrors, usersDeleteUserMeData, usersDeleteUserMeResponses, usersDeleteUserResponses, usersReadUserByIdData, usersReadUserByIdErrors, usersReadUserByIdResponses, usersReadUserMeData, usersReadUserMeResponses, usersReadUsersData, usersReadUsersErrors, usersReadUsersResponses, usersRegisterUserData, usersRegisterUserErrors, usersRegisterUserResponses, usersUpdatePasswordMeData, usersUpdatePasswordMeErrors, usersUpdatePasswordMeResponses, usersUpdateUserData, usersUpdateUserErrors, usersUpdateUserMeData, usersUpdateUserMeErrors, usersUpdateUserMeResponses, usersUpdateUserResponses, utilsHealthCheckData, utilsHealthCheckResponses, utilsTestEmailData, utilsTestEmailErrors, utilsTestEmailResponses, workerClaimData, workerClaimErrors, workerClaimResponses, workerCompleteData, workerCompleteErrors, workerCompleteResponses, workerDownloadArtifactDataData, workerDownloadArtifactDataErrors, workerDownloadArtifactDataResponses, workerHeartbeatData, workerHeartbeatErrors, workerHeartbeatResponses, workerListJobArtifactsData, workerListJobArtifactsErrors, workerListJobArtifactsResponses, workerProgressData, workerProgressErrors, workerProgressResponses, workerRenewData, workerRenewErrors, workerRenewResponses, workerUploadArtifactData, workerUploadArtifactErrors, workerUploadArtifactResponses } from './types.gen';
+import type { adminReadWorkersData, adminReadWorkersDetailData, adminReadWorkersDetailResponses, adminReadWorkersResponses, adminRegisterWorkerData, adminRegisterWorkerErrors, adminRegisterWorkerResponses, adminSetActiveData, adminSetActiveErrors, adminSetActiveResponses, adminWorkerJobsData, adminWorkerJobsErrors, adminWorkerJobsResponses, itemsCreateItemData, itemsCreateItemErrors, itemsCreateItemResponses, itemsDeleteItemData, itemsDeleteItemErrors, itemsDeleteItemResponses, itemsReadItemData, itemsReadItemErrors, itemsReadItemResponses, itemsReadItemsData, itemsReadItemsErrors, itemsReadItemsResponses, itemsUpdateItemData, itemsUpdateItemErrors, itemsUpdateItemResponses, jobsCancelJobData, jobsCancelJobErrors, jobsCancelJobResponses, jobsDownloadArtifactData, jobsDownloadArtifactErrors, jobsDownloadArtifactResponses, jobsJobsSummaryData, jobsJobsSummaryResponses, jobsReadJobArtifactsData, jobsReadJobArtifactsErrors, jobsReadJobArtifactsResponses, jobsReadJobData, jobsReadJobErrors, jobsReadJobEventsData, jobsReadJobEventsErrors, jobsReadJobEventsResponses, jobsReadJobResponses, jobsReadJobsData, jobsReadJobsErrors, jobsReadJobsResponses, jobsReapData, jobsReapResponses, jobsSubmitJobData, jobsSubmitJobErrors, jobsSubmitJobFileData, jobsSubmitJobFileErrors, jobsSubmitJobFileResponses, jobsSubmitJobResponses, jobsWorkersStatusData, jobsWorkersStatusResponses, loginGoogleCallbackData, loginGoogleCallbackErrors, loginGoogleCallbackResponses, loginGoogleLoginData, loginGoogleLoginResponses, loginGoogleStatusData, loginGoogleStatusResponses, loginLoginAccessTokenData, loginLoginAccessTokenErrors, loginLoginAccessTokenResponses, loginRecoverPasswordData, loginRecoverPasswordErrors, loginRecoverPasswordHtmlContentData, loginRecoverPasswordHtmlContentErrors, loginRecoverPasswordHtmlContentResponses, loginRecoverPasswordResponses, loginResetPasswordData, loginResetPasswordErrors, loginResetPasswordResponses, loginTestTokenData, loginTestTokenResponses, privateCreateUserData, privateCreateUserErrors, privateCreateUserResponses, usersCreateUserData, usersCreateUserErrors, usersCreateUserResponses, usersDeleteUserData, usersDeleteUserErrors, usersDeleteUserMeData, usersDeleteUserMeResponses, usersDeleteUserResponses, usersReadUserByIdData, usersReadUserByIdErrors, usersReadUserByIdResponses, usersReadUserMeData, usersReadUserMeResponses, usersReadUsersData, usersReadUsersErrors, usersReadUsersResponses, usersRegisterUserData, usersRegisterUserErrors, usersRegisterUserResponses, usersUpdatePasswordMeData, usersUpdatePasswordMeErrors, usersUpdatePasswordMeResponses, usersUpdateUserData, usersUpdateUserErrors, usersUpdateUserMeData, usersUpdateUserMeErrors, usersUpdateUserMeResponses, usersUpdateUserResponses, utilsHealthCheckData, utilsHealthCheckResponses, utilsTestEmailData, utilsTestEmailErrors, utilsTestEmailResponses, workerClaimData, workerClaimErrors, workerClaimResponses, workerCompleteData, workerCompleteErrors, workerCompleteResponses, workerDownloadArtifactDataData, workerDownloadArtifactDataErrors, workerDownloadArtifactDataResponses, workerHeartbeatData, workerHeartbeatErrors, workerHeartbeatResponses, workerListJobArtifactsData, workerListJobArtifactsErrors, workerListJobArtifactsResponses, workerProgressData, workerProgressErrors, workerProgressResponses, workerRenewData, workerRenewErrors, workerRenewResponses, workerUploadArtifactData, workerUploadArtifactErrors, workerUploadArtifactResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -456,6 +456,25 @@ export class JobsService {
     }
     
     /**
+     * Workers Status
+     *
+     * Is anything actually able to process the queue?
+     *
+     * Deliberately available to any authenticated user, not just admins, because a
+     * queued job with no worker and a stalled job look identical on the dashboard --
+     * this is what distinguishes them. It exposes only aggregate liveness: no worker
+     * names, ids or keys.
+     */
+    public static workersStatus<ThrowOnError extends boolean = true>(options?: Options<jobsWorkersStatusData, ThrowOnError>) {
+        return (options?.client ?? client).get<jobsWorkersStatusResponses, unknown, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/jobs/workers-status',
+            ...options
+        });
+    }
+    
+    /**
      * Jobs Summary
      *
      * Counts per status -- the numbers the dashboard header needs, without
@@ -709,6 +728,23 @@ export class AdminService {
                 'Content-Type': 'application/json',
                 ...options.headers
             }
+        });
+    }
+    
+    /**
+     * Read Workers Detail
+     *
+     * Workers with liveness information for the admin view.
+     *
+     * The plain list endpoint returns the public shape (no heartbeat), which is not
+     * enough to tell a healthy worker from a dead one.
+     */
+    public static readWorkersDetail<ThrowOnError extends boolean = true>(options?: Options<adminReadWorkersDetailData, ThrowOnError>) {
+        return (options?.client ?? client).get<adminReadWorkersDetailResponses, unknown, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/admin/workers/list',
+            ...options
         });
     }
     
