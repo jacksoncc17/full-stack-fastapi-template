@@ -5,6 +5,56 @@ export type ClientOptions = {
 };
 
 /**
+ * ArtifactPublic
+ *
+ * What the API returns about an artifact -- never the bytes.
+ */
+export type ArtifactPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Bytes
+     */
+    bytes: number;
+    /**
+     * Sha256
+     */
+    sha256?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * Body_jobs-submit_job_file
+ */
+export type Body_jobs_submit_job_file = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_login-login_access_token
  */
 export type Body_login_login_access_token = {
@@ -32,6 +82,48 @@ export type Body_login_login_access_token = {
      * Client Secret
      */
     client_secret?: string | null;
+};
+
+/**
+ * Body_worker-upload_artifact
+ */
+export type Body_worker_upload_artifact = {
+    /**
+     * Lease Token
+     */
+    lease_token: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Filename
+     */
+    filename?: string | null;
+    /**
+     * Mime Type
+     */
+    mime_type?: string;
+};
+
+/**
+ * GoogleAuthURL
+ *
+ * Returned by /auth/google/login so the frontend can redirect.
+ */
+export type GoogleAuthURL = {
+    /**
+     * Authorization Url
+     */
+    authorization_url: string;
+    /**
+     * State
+     */
+    state: string;
 };
 
 /**
@@ -106,6 +198,299 @@ export type ItemsPublic = {
      * Data
      */
     data: Array<ItemPublic>;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
+ * JobClaimRequest
+ */
+export type JobClaimRequest = {
+    /**
+     * Worker Name
+     */
+    worker_name: string;
+    /**
+     * Lease Seconds
+     */
+    lease_seconds?: number;
+};
+
+/**
+ * JobClaimed
+ *
+ * Everything a worker needs to run one job, and nothing more.
+ */
+export type JobClaimed = {
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Lease Token
+     */
+    lease_token: string;
+    /**
+     * Lease Expires At
+     */
+    lease_expires_at: string;
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Sgf Text
+     */
+    sgf_text: string;
+    /**
+     * Sgf Name
+     */
+    sgf_name: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Duration S
+     */
+    duration_s: number;
+    /**
+     * Bpm
+     */
+    bpm?: number | null;
+    /**
+     * Musical Key
+     */
+    musical_key?: string | null;
+    /**
+     * Time Sig
+     */
+    time_sig?: string | null;
+    /**
+     * Seed
+     */
+    seed?: string | null;
+    /**
+     * Visits
+     */
+    visits: number;
+    /**
+     * Formats
+     */
+    formats: string;
+};
+
+/**
+ * JobComplete
+ */
+export type JobComplete = {
+    /**
+     * Lease Token
+     */
+    lease_token: string;
+    /**
+     * Success
+     */
+    success?: boolean;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
+ * JobCreate
+ *
+ * What a client submits. `sgf_text` is validated by the route.
+ */
+export type JobCreate = {
+    /**
+     * Sgf Text
+     */
+    sgf_text: string;
+    /**
+     * Sgf Name
+     */
+    sgf_name?: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Duration S
+     */
+    duration_s?: number;
+    /**
+     * Bpm
+     */
+    bpm?: number | null;
+    /**
+     * Musical Key
+     */
+    musical_key?: string | null;
+    /**
+     * Time Sig
+     */
+    time_sig?: string | null;
+    /**
+     * Seed
+     */
+    seed?: string | null;
+    /**
+     * Visits
+     */
+    visits?: number;
+    /**
+     * Formats
+     */
+    formats?: string;
+};
+
+/**
+ * JobEventPublic
+ */
+export type JobEventPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * At
+     */
+    at?: string | null;
+    /**
+     * Level
+     */
+    level: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Progress
+     */
+    progress?: number | null;
+};
+
+/**
+ * JobProgress
+ */
+export type JobProgress = {
+    /**
+     * Lease Token
+     */
+    lease_token: string;
+    /**
+     * Progress
+     */
+    progress: number;
+    /**
+     * Message
+     */
+    message?: string | null;
+};
+
+/**
+ * JobPublic
+ */
+export type JobPublic = {
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Duration S
+     */
+    duration_s?: number;
+    /**
+     * Bpm
+     */
+    bpm?: number | null;
+    /**
+     * Musical Key
+     */
+    musical_key?: string | null;
+    /**
+     * Time Sig
+     */
+    time_sig?: string | null;
+    /**
+     * Seed
+     */
+    seed?: string | null;
+    /**
+     * Visits
+     */
+    visits?: number;
+    /**
+     * Formats
+     */
+    formats?: string;
+    /**
+     * Reference Audio Id
+     */
+    reference_audio_id?: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Owner Id
+     */
+    owner_id: string;
+    /**
+     * Sgf Name
+     */
+    sgf_name: string;
+    status: JobStatus;
+    /**
+     * Progress
+     */
+    progress: number;
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+};
+
+/**
+ * JobStatus
+ *
+ * Job lifecycle.
+ *
+ * QUEUED -> CLAIMED -> RUNNING -> SUCCEEDED | FAILED
+ * Any of the middle states can fall back to QUEUED when a lease expires.
+ * CANCELED is terminal and may be requested by the owner at any point before
+ * SUCCEEDED.
+ */
+export type JobStatus = 'queued' | 'claimed' | 'running' | 'succeeded' | 'failed' | 'canceled';
+
+/**
+ * JobsPublic
+ */
+export type JobsPublic = {
+    /**
+     * Data
+     */
+    data: Array<JobPublic>;
     /**
      * Count
      */
@@ -342,6 +727,18 @@ export type ValidationError = {
     };
 };
 
+/**
+ * WorkerHeartbeat
+ */
+export type WorkerHeartbeat = {
+    /**
+     * Capabilities
+     */
+    capabilities?: {
+        [key: string]: unknown;
+    } | null;
+};
+
 export type loginLoginAccessTokenData = {
     body: Body_login_login_access_token;
     path?: never;
@@ -467,6 +864,80 @@ export type loginRecoverPasswordHtmlContentResponses = {
 };
 
 export type loginRecoverPasswordHtmlContentResponse = loginRecoverPasswordHtmlContentResponses[keyof loginRecoverPasswordHtmlContentResponses];
+
+export type loginGoogleLoginData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/google/login';
+};
+
+export type loginGoogleLoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: GoogleAuthURL;
+};
+
+export type loginGoogleLoginResponse = loginGoogleLoginResponses[keyof loginGoogleLoginResponses];
+
+export type loginGoogleCallbackData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Code
+         */
+        code?: string | null;
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Error
+         */
+        error?: string | null;
+    };
+    url: '/api/v1/auth/google/callback';
+};
+
+export type loginGoogleCallbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type loginGoogleCallbackError = loginGoogleCallbackErrors[keyof loginGoogleCallbackErrors];
+
+export type loginGoogleCallbackResponses = {
+    /**
+     * Response Login-Google Callback
+     *
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type loginGoogleStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/google/status';
+};
+
+export type loginGoogleStatusResponses = {
+    /**
+     * Response Login-Google Status
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type loginGoogleStatusResponse = loginGoogleStatusResponses[keyof loginGoogleStatusResponses];
 
 export type usersReadUsersData = {
     body?: never;
@@ -920,6 +1391,626 @@ export type itemsUpdateItemResponses = {
 };
 
 export type itemsUpdateItemResponse = itemsUpdateItemResponses[keyof itemsUpdateItemResponses];
+
+export type jobsReadJobsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: JobStatus | null;
+        /**
+         * Skip
+         */
+        skip?: number;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/jobs/';
+};
+
+export type jobsReadJobsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsReadJobsError = jobsReadJobsErrors[keyof jobsReadJobsErrors];
+
+export type jobsReadJobsResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobsPublic;
+};
+
+export type jobsReadJobsResponse = jobsReadJobsResponses[keyof jobsReadJobsResponses];
+
+export type jobsSubmitJobData = {
+    body: JobCreate;
+    path?: never;
+    query?: never;
+    url: '/api/v1/jobs/';
+};
+
+export type jobsSubmitJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsSubmitJobError = jobsSubmitJobErrors[keyof jobsSubmitJobErrors];
+
+export type jobsSubmitJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobPublic;
+};
+
+export type jobsSubmitJobResponse = jobsSubmitJobResponses[keyof jobsSubmitJobResponses];
+
+export type jobsSubmitJobFileData = {
+    body: Body_jobs_submit_job_file;
+    path?: never;
+    query?: {
+        /**
+         * Title
+         */
+        title?: string | null;
+        /**
+         * Duration S
+         */
+        duration_s?: number;
+        /**
+         * Bpm
+         */
+        bpm?: number | null;
+        /**
+         * Musical Key
+         */
+        musical_key?: string | null;
+        /**
+         * Time Sig
+         */
+        time_sig?: string | null;
+        /**
+         * Seed
+         */
+        seed?: string | null;
+        /**
+         * Visits
+         */
+        visits?: number;
+        /**
+         * Formats
+         */
+        formats?: string;
+    };
+    url: '/api/v1/jobs/upload';
+};
+
+export type jobsSubmitJobFileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsSubmitJobFileError = jobsSubmitJobFileErrors[keyof jobsSubmitJobFileErrors];
+
+export type jobsSubmitJobFileResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobPublic;
+};
+
+export type jobsSubmitJobFileResponse = jobsSubmitJobFileResponses[keyof jobsSubmitJobFileResponses];
+
+export type jobsJobsSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/jobs/summary';
+};
+
+export type jobsJobsSummaryResponses = {
+    /**
+     * Response Jobs-Jobs Summary
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type jobsJobsSummaryResponse = jobsJobsSummaryResponses[keyof jobsJobsSummaryResponses];
+
+export type jobsReadJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/jobs/{job_id}';
+};
+
+export type jobsReadJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsReadJobError = jobsReadJobErrors[keyof jobsReadJobErrors];
+
+export type jobsReadJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobPublic;
+};
+
+export type jobsReadJobResponse = jobsReadJobResponses[keyof jobsReadJobResponses];
+
+export type jobsReadJobEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/jobs/{job_id}/events';
+};
+
+export type jobsReadJobEventsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsReadJobEventsError = jobsReadJobEventsErrors[keyof jobsReadJobEventsErrors];
+
+export type jobsReadJobEventsResponses = {
+    /**
+     * Response Jobs-Read Job Events
+     *
+     * Successful Response
+     */
+    200: Array<JobEventPublic>;
+};
+
+export type jobsReadJobEventsResponse = jobsReadJobEventsResponses[keyof jobsReadJobEventsResponses];
+
+export type jobsReadJobArtifactsData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/jobs/{job_id}/artifacts';
+};
+
+export type jobsReadJobArtifactsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsReadJobArtifactsError = jobsReadJobArtifactsErrors[keyof jobsReadJobArtifactsErrors];
+
+export type jobsReadJobArtifactsResponses = {
+    /**
+     * Response Jobs-Read Job Artifacts
+     *
+     * Successful Response
+     */
+    200: Array<ArtifactPublic>;
+};
+
+export type jobsReadJobArtifactsResponse = jobsReadJobArtifactsResponses[keyof jobsReadJobArtifactsResponses];
+
+export type jobsDownloadArtifactData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+        /**
+         * Artifact Id
+         */
+        artifact_id: string;
+    };
+    query?: never;
+    url: '/api/v1/jobs/{job_id}/artifacts/{artifact_id}';
+};
+
+export type jobsDownloadArtifactErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsDownloadArtifactError = jobsDownloadArtifactErrors[keyof jobsDownloadArtifactErrors];
+
+export type jobsDownloadArtifactResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type jobsCancelJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/jobs/{job_id}/cancel';
+};
+
+export type jobsCancelJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type jobsCancelJobError = jobsCancelJobErrors[keyof jobsCancelJobErrors];
+
+export type jobsCancelJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobPublic;
+};
+
+export type jobsCancelJobResponse = jobsCancelJobResponses[keyof jobsCancelJobResponses];
+
+export type jobsReapData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/jobs/admin/reap';
+};
+
+export type jobsReapResponses = {
+    /**
+     * Response Jobs-Reap
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type jobsReapResponse = jobsReapResponses[keyof jobsReapResponses];
+
+export type workerClaimData = {
+    /**
+     * Req
+     */
+    body?: JobClaimRequest | null;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/worker/claim';
+};
+
+export type workerClaimErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerClaimError = workerClaimErrors[keyof workerClaimErrors];
+
+export type workerClaimResponses = {
+    /**
+     * Response Worker-Claim
+     *
+     * Successful Response
+     */
+    200: JobClaimed | null;
+};
+
+export type workerClaimResponse = workerClaimResponses[keyof workerClaimResponses];
+
+export type workerProgressData = {
+    body: JobProgress;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/jobs/{job_id}/progress';
+};
+
+export type workerProgressErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerProgressError = workerProgressErrors[keyof workerProgressErrors];
+
+export type workerProgressResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobEventPublic;
+};
+
+export type workerProgressResponse = workerProgressResponses[keyof workerProgressResponses];
+
+export type workerRenewData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query: {
+        /**
+         * Lease Token
+         */
+        lease_token: string;
+        /**
+         * Lease Seconds
+         */
+        lease_seconds?: number;
+    };
+    url: '/api/v1/worker/jobs/{job_id}/renew';
+};
+
+export type workerRenewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerRenewError = workerRenewErrors[keyof workerRenewErrors];
+
+export type workerRenewResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobClaimed;
+};
+
+export type workerRenewResponse = workerRenewResponses[keyof workerRenewResponses];
+
+export type workerListJobArtifactsData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/jobs/{job_id}/artifacts';
+};
+
+export type workerListJobArtifactsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerListJobArtifactsError = workerListJobArtifactsErrors[keyof workerListJobArtifactsErrors];
+
+export type workerListJobArtifactsResponses = {
+    /**
+     * Response Worker-List Job Artifacts
+     *
+     * Successful Response
+     */
+    200: Array<ArtifactPublic>;
+};
+
+export type workerListJobArtifactsResponse = workerListJobArtifactsResponses[keyof workerListJobArtifactsResponses];
+
+export type workerUploadArtifactData = {
+    body: Body_worker_upload_artifact;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/jobs/{job_id}/artifacts';
+};
+
+export type workerUploadArtifactErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerUploadArtifactError = workerUploadArtifactErrors[keyof workerUploadArtifactErrors];
+
+export type workerUploadArtifactResponses = {
+    /**
+     * Successful Response
+     */
+    200: ArtifactPublic;
+};
+
+export type workerUploadArtifactResponse = workerUploadArtifactResponses[keyof workerUploadArtifactResponses];
+
+export type workerCompleteData = {
+    body: JobComplete;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/jobs/{job_id}/complete';
+};
+
+export type workerCompleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerCompleteError = workerCompleteErrors[keyof workerCompleteErrors];
+
+export type workerCompleteResponses = {
+    /**
+     * Response Worker-Complete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type workerCompleteResponse = workerCompleteResponses[keyof workerCompleteResponses];
+
+export type workerHeartbeatData = {
+    /**
+     * Body
+     */
+    body?: WorkerHeartbeat | null;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/worker/heartbeat';
+};
+
+export type workerHeartbeatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerHeartbeatError = workerHeartbeatErrors[keyof workerHeartbeatErrors];
+
+export type workerHeartbeatResponses = {
+    /**
+     * Response Worker-Heartbeat
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type workerHeartbeatResponse = workerHeartbeatResponses[keyof workerHeartbeatResponses];
+
+export type workerDownloadArtifactDataData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Worker-Key
+         */
+        'X-Worker-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Artifact Id
+         */
+        artifact_id: string;
+    };
+    query?: never;
+    url: '/api/v1/worker/artifacts/{artifact_id}/data';
+};
+
+export type workerDownloadArtifactDataErrors = {
+    /**
+     * Validation Error
+     */
+    422: HTTPValidationError;
+};
+
+export type workerDownloadArtifactDataError = workerDownloadArtifactDataErrors[keyof workerDownloadArtifactDataErrors];
+
+export type workerDownloadArtifactDataResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type privateCreateUserData = {
     body: PrivateUserCreate;

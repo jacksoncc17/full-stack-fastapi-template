@@ -49,6 +49,10 @@ def authenticate(*, session: Session, email: str, password: str) -> User | None:
         # This ensures the response time is similar whether or not the email exists
         verify_password(password, DUMMY_HASH)
         return None
+    # A user created through Google has no local password. Without this guard
+    # verify_password would raise on None rather than simply failing the login.
+    if not db_user.hashed_password:
+        return None
     verified, updated_password_hash = verify_password(password, db_user.hashed_password)
     if not verified:
         return None

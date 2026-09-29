@@ -163,6 +163,38 @@ def upgrade():
     )
     op.create_index(op.f("ix_jobevent_job_id"), "jobevent", ["job_id"], unique=False)
 
+    # 6. Google sign-in needs a link table and a nullable password, since a
+    #    Google-created user has no local password to hash.
+    op.create_table(
+        "oauthaccount",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("provider", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False),
+        sa.Column(
+            "provider_account_id",
+            sqlmodel.sql.sqltypes.AutoString(length=255),
+            nullable=False,
+        ),
+        sa.Column("email", sqlmodel.sql.sqltypes.AutoString(length=255), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_oauthaccount_provider"), "oauthaccount", ["provider"], unique=False
+    )
+    op.create_index(
+        op.f("ix_oauthaccount_provider_account_id"),
+        "oauthaccount",
+        ["provider_account_id"],
+        unique=False,
+    )
+    op.alter_column(
+        "user", "hashed_password",
+        existing_type=sqlmodel.sql.sqltypes.AutoString(),
+        nullable=True,
+    )
+
 
 def downgrade():
     """Drop in reverse dependency order, breaking the cycle first."""
@@ -177,5 +209,14 @@ def downgrade():
     op.drop_table("job")
     op.drop_index(op.f("ix_worker_name"), table_name="worker")
     op.drop_table("worker")
+    op.alter_column(
+        "user", "hashed_password",
+        existing_type=sqlmodel.sql.sqltypes.AutoString(),
+        nullable=False,
+    )
+    op.drop_index(op.f("ix_oauthaccount_provider_account_id"),
+                  table_name="oauthaccount")
+    op.drop_index(op.f("ix_oauthaccount_provider"), table_name="oauthaccount")
+    op.drop_table("oauthaccount")
     # in Postgres the enum type outlives the table that used it
     sa.Enum(name="jobstatus").drop(op.get_bind(), checkfirst=True)

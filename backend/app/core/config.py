@@ -65,6 +65,22 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
 
+    # ---- Google OAuth -------------------------------------------------
+    # Optional: when unset, /auth/google/* returns 503 and the email/password
+    # login keeps working. That keeps local development and CI from needing real
+    # Google credentials just to boot the app.
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    # Where the callback sends the browser once it has a token. The frontend
+    # reads the token from the query string and stores it itself.
+    FRONTEND_OAUTH_REDIRECT: str = "http://localhost:5173/oauth/callback"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def google_oauth_enabled(self) -> bool:
+        return bool(self.GOOGLE_CLIENT_ID and self.GOOGLE_CLIENT_SECRET)
+
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
             message = (

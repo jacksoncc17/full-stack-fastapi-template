@@ -17,7 +17,10 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
 import { Route as LayoutItemsRouteImport } from './routes/_layout/items'
+import { Route as LayoutJobsRouteImport } from './routes/_layout/jobs'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
+import { Route as LayoutSubmitRouteImport } from './routes/_layout/submit'
+import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
@@ -58,10 +61,25 @@ const LayoutItemsRoute = LayoutItemsRouteImport.update({
   path: '/items',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutJobsRoute = LayoutJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSubmitRoute = LayoutSubmitRouteImport.update({
+  id: '/submit',
+  path: '/submit',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const OauthCallbackRoute = OauthCallbackRouteImport.update({
+  id: '/oauth/callback',
+  path: '/oauth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -72,7 +90,10 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
   '/items': typeof LayoutItemsRoute
+  '/jobs': typeof LayoutJobsRoute
   '/settings': typeof LayoutSettingsRoute
+  '/submit': typeof LayoutSubmitRoute
+  '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -81,7 +102,10 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
   '/items': typeof LayoutItemsRoute
+  '/jobs': typeof LayoutJobsRoute
   '/settings': typeof LayoutSettingsRoute
+  '/submit': typeof LayoutSubmitRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/': typeof LayoutIndexRoute
 }
 export interface FileRoutesById {
@@ -93,7 +117,10 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_layout/admin': typeof LayoutAdminRoute
   '/_layout/items': typeof LayoutItemsRoute
+  '/_layout/jobs': typeof LayoutJobsRoute
   '/_layout/settings': typeof LayoutSettingsRoute
+  '/_layout/submit': typeof LayoutSubmitRoute
+  '/oauth/callback': typeof OauthCallbackRoute
   '/_layout/': typeof LayoutIndexRoute
 }
 export interface FileRouteTypes {
@@ -106,7 +133,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/admin'
     | '/items'
+    | '/jobs'
     | '/settings'
+    | '/submit'
+    | '/oauth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -115,7 +145,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/admin'
     | '/items'
+    | '/jobs'
     | '/settings'
+    | '/submit'
+    | '/oauth/callback'
     | '/'
   id:
     | '__root__'
@@ -126,7 +159,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_layout/admin'
     | '/_layout/items'
+    | '/_layout/jobs'
     | '/_layout/settings'
+    | '/_layout/submit'
+    | '/oauth/callback'
     | '/_layout/'
   fileRoutesById: FileRoutesById
 }
@@ -136,6 +172,7 @@ export interface RootRouteChildren {
   RecoverPasswordRoute: typeof RecoverPasswordRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  OauthCallbackRoute: typeof OauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -196,6 +233,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutItemsRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/jobs': {
+      id: '/_layout/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof LayoutJobsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings': {
       id: '/_layout/settings'
       path: '/settings'
@@ -203,20 +247,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/submit': {
+      id: '/_layout/submit'
+      path: '/submit'
+      fullPath: '/submit'
+      preLoaderRoute: typeof LayoutSubmitRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/oauth/callback': {
+      id: '/oauth/callback'
+      path: '/oauth/callback'
+      fullPath: '/oauth/callback'
+      preLoaderRoute: typeof OauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRoute
   LayoutItemsRoute: typeof LayoutItemsRoute
+  LayoutJobsRoute: typeof LayoutJobsRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
+  LayoutSubmitRoute: typeof LayoutSubmitRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRoute,
   LayoutItemsRoute: LayoutItemsRoute,
+  LayoutJobsRoute: LayoutJobsRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
+  LayoutSubmitRoute: LayoutSubmitRoute,
   LayoutIndexRoute: LayoutIndexRoute,
 }
 
@@ -229,6 +291,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecoverPasswordRoute: RecoverPasswordRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  OauthCallbackRoute: OauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

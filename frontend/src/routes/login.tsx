@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
+import GoogleSignInButton from "@/components/Common/GoogleSignInButton"
 import { PasswordInput } from "@/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
@@ -128,6 +129,8 @@ function Login() {
               Log In
             </LoadingButton>
           </div>
+
+          <GoogleSignInButton />
 
           <div className="text-center text-sm">
             Don't have an account yet?{" "}

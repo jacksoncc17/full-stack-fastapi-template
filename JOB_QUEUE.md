@@ -211,3 +211,65 @@ worker actually reports capabilities, at which point psycopg raises
 `cannot adapt type 'dict'` and the heartbeat returns 500. It is now a `JSON`
 column. The queue verification suite was re-run afterwards (19/19) to confirm the
 change did not regress anything.
+
+## Google authentication
+
+`backend/app/api/routes/google_auth.py`, mounted at `/api/v1/auth/google`:
+
+| route | purpose |
+|---|---|
+| `GET /status` | whether Google is configured (the frontend hides the button if not) |
+| `GET /login` | returns the consent URL + a single-use `state` |
+| `GET /callback` | exchanges the code, finds/creates the user, redirects with a JWT |
+
+**Optional by design.** With `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` unset the
+routes return 503 with a clear message and email/password login is untouched, so
+local development and CI need no Google credentials to boot. Verified: `/status`
+reports `enabled:false`, `/login` returns 503 rather than crashing.
+
+**Why the token comes back in a redirect query string**: the existing frontend
+keeps its JWT in `localStorage` and sends it as a Bearer header. Issuing it the
+same way means every authenticated screen works unchanged instead of needing a
+second session mechanism. The frontend callback route stores it and immediately
+`replaceState`s the URL so the token does not linger in history.
+
+**Account-linking rules** (a security decision, so stated explicitly):
+
+* the link key is `(provider, provider_account_id)` — Google's `sub`, which is
+  stable; NOT the email, which changes and is not unique across providers
+* if a local user already owns the email, accounts are linked **only when Google
+  reports `email_verified`** — otherwise someone could register a Google account
+  at an unverified address and take over an existing local account
+* a Google user gets no local password, so `hashed_password` is nullable and the
+  password routes refuse cleanly instead of crashing on `None`
+
+## Frontend
+
+| route | file |
+|---|---|
+| `/jobs` | `routes/_layout/jobs.tsx` — dashboard: status counts, job table, progress bars, artifact downloads, cancel |
+| `/submit` | `routes/_layout/submit.tsx` — upload an SGF and set the render parameters |
+| `/oauth/callback` | `routes/oauth/callback.tsx` — stores the token from Google and forwards to `/jobs` |
+
+Sidebar links were added, and `GoogleSignInButton` renders nothing when Google is
+unconfigured, so it is safe on the login page unconditionally.
+
+The typed client is regenerated from `openapi.json` (`npx openapi-ts`), which is
+how the new `JobsService` and the Google methods on `LoginService` appear — no
+hand-written API types. `vite build` regenerates `routeTree.gen.ts` via the
+TanStack Router plugin.
+
+Two things that cost time and are worth writing down:
+
+* **`bun install` cannot finish in this sandbox.** It gets 241 packages and then
+  fails to extract `next` (`react-email`'s dependency) with `Fail extracting
+  tarball`; the tarball is fine (34 MB, extracts by hand, 7252 files) and a 200 MB
+  write succeeds, so it is bun-specific, not a disk or network limit. The caches
+  also have to be redirected because `~/.bun` is read-only here
+  (`BUN_INSTALL_CACHE_DIR`). `npm install` with a workspace cache worked and the
+  build then passed; `package-lock.json` was removed afterwards so bun stays the
+  single source of truth.
+* **Client call shapes are easy to guess wrong.** Path parameters nest under
+  `path: { job_id }`, and `submitJobFile` takes the file in `body` with every other
+  option in `query` — the route declares them as Form/Query, not a JSON body.
+  `tsc` caught all of these.

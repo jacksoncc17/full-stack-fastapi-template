@@ -9,11 +9,15 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
+import { FileVideo, PlusCircle } from "lucide-react"
+
 import { type Item, Main } from "./Main"
 import { User } from "./User"
 
 const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
+  { icon: FileVideo, title: "Jobs", path: "/jobs" },
+  { icon: PlusCircle, title: "New request", path: "/submit" },
   { icon: Briefcase, title: "Items", path: "/items" },
 ]
 

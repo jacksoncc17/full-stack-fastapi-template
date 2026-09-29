@@ -1,10 +1,20 @@
 from fastapi import APIRouter
 
-from app.api.routes import items, jobs, login, private, users, utils, worker
+from app.api.routes import (
+    google_auth,
+    items,
+    jobs,
+    login,
+    private,
+    users,
+    utils,
+    worker,
+)
 from app.core.config import settings
 
 api_router = APIRouter()
 api_router.include_router(login.router)
+api_router.include_router(google_auth.router)
 api_router.include_router(users.router)
 api_router.include_router(utils.router)
 api_router.include_router(items.router)

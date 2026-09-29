@@ -48,15 +48,42 @@ class UpdatePassword(SQLModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class OAuthAccount(SQLModel, table=True):
+    """Links a local user to an external identity provider.
+
+    Kept separate from User so one user can hold several providers later, and so
+    the (provider, provider_account_id) pair can be unique on its own -- the
+    lookup that matters when a callback arrives is "who owns this Google sub?",
+    and it must be a single indexed hit.
+    """
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    provider: str = Field(max_length=32, index=True)
+    provider_account_id: str = Field(max_length=255, index=True)
+    email: EmailStr | None = Field(default=None, max_length=255)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
+    user: User | None = Relationship(back_populates="oauth_accounts")
+
+
 # Database model, database table inferred from class name
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    hashed_password: str
+    # Nullable: a user who signed up through Google has no local password.
+    hashed_password: str | None = Field(default=None)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
     items: list[Item] = Relationship(back_populates="owner", cascade_delete=True)
+    oauth_accounts: list[OAuthAccount] = Relationship(
+        back_populates="user", cascade_delete=True
+    )
 
 
 # Properties to return via API, id is always required
@@ -126,6 +153,13 @@ class Token(SQLModel):
 # Contents of JWT token
 class TokenPayload(SQLModel):
     sub: str | None = None
+
+
+class GoogleAuthURL(SQLModel):
+    """Returned by /auth/google/login so the frontend can redirect."""
+
+    authorization_url: str
+    state: str
 
 
 class NewPassword(SQLModel):
