@@ -176,6 +176,7 @@ async def submit_job_generic(
     params: str = Form(default="{}"),
     files: list[UploadFile] = File(default=[]),
     file_field: str = Form(default="sgf"),
+    file_fields: str = Form(default=""),
 ) -> Any:
     """Submit a job with optional input files.
 
@@ -184,6 +185,15 @@ async def submit_job_generic(
     are the inputs. This is what lets the frontend render any service's form without
     knowing anything about it -- the SGF-specific `/upload` route only exists for the
     legacy client.
+
+    **A service may declare more than one file field.** `file_field` names a single
+    field and is what the first client sent, so it still works. `file_fields` is the
+    general form: a comma-separated field name per uploaded file, in the same order,
+    which is how a service like intonationCheck receives a reference clip, a clip to
+    check and a score as three separate inputs. Without this, every file landed on one
+    field and any multi-input service was unsubmittable -- it validated (the required
+    names were all present in params) and then failed in the worker, where the second
+    and third inputs did not exist.
 
     Files are stored per job and fetched by the worker, rather than inlined in the
     job row, so a large input does not slow down every status query.
@@ -195,6 +205,8 @@ async def submit_job_generic(
     if not isinstance(parsed, dict):
         raise HTTPException(status_code=422, detail="params must be a JSON object")
 
+    field_names = _file_field_names(files, file_field, file_fields)
+
     # Files are NOT part of the params JSON (the frontend strips them out, because
     # they travel as multipart parts). But a service declares its file field inside
     # param_schema, so if that field is required, validating the raw params would
@@ -203,12 +215,14 @@ async def submit_job_generic(
     # So the uploaded filenames are injected into params before validation: the
     # values arriving over the wire are satisfied by the parts that arrived with
     # them. The worker still fetches the bytes by name separately.
-    if files and file_field:
-        existing = parsed.get(file_field)
-        names = [f.filename or "input" for f in files]
+    for name, upload in zip(field_names, files):
+        if not name:
+            continue
+        existing = parsed.get(name)
+        filename = upload.filename or "input"
         # an array field (format: files) takes all of them; a scalar takes the first
-        parsed[file_field] = (existing or []) + names if isinstance(existing, list) \
-            else names
+        parsed[name] = (existing or []) + [filename] if isinstance(existing, list) \
+            else [filename]
 
     # SGF validation is a property of the SGF service, not of submission
     sgf_text = ""
@@ -223,12 +237,39 @@ async def submit_job_generic(
                        sgf_name=(files[0].filename if files else "input.txt") or "input.txt")
     job = submit_job(session=session, current_user=current_user, job_in=job_in)
 
-    for f in files:
+    for name, f in zip(field_names, files):
         data = await f.read()
-        _store_input(session=session, job_id=job.id, name=file_field,
+        _store_input(session=session, job_id=job.id, name=name or file_field,
                      filename=f.filename or "input", data=data,
                      mime_type=f.content_type or "application/octet-stream")
     return job
+
+
+def _file_field_names(files: list[UploadFile], file_field: str,
+                      file_fields: str) -> list[str]:
+    """Which param field each uploaded file belongs to.
+
+    `file_fields` is one name per file, comma-separated and positional. Blank entries
+    fall back to `file_field`, so an older client that sends only `file_field` keeps
+    working unchanged and a newer one can mix the two.
+
+    A count mismatch is refused rather than padded: silently attaching a file to the
+    wrong field, or dropping one, produces a job that fails later in the worker with
+    a message about a missing input -- which points at the wrong layer.
+    """
+    if not files:
+        return []
+    if not file_fields.strip():
+        return [file_field] * len(files)
+
+    names = [part.strip() for part in file_fields.split(",")]
+    if len(names) != len(files):
+        raise HTTPException(
+            status_code=422,
+            detail=f"file_fields lists {len(names)} field(s) but {len(files)} file(s) "
+                   f"were uploaded; they must correspond one to one",
+        )
+    return [name or file_field for name in names]
 
 
 def _store_input(*, session: Session, job_id: uuid.UUID, name: str,

@@ -74,6 +74,10 @@ export type Body_jobs_submit_job_generic = {
      * File Field
      */
     file_field?: string;
+    /**
+     * File Fields
+     */
+    file_fields?: string;
 };
 
 /**

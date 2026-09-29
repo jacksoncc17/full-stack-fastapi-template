@@ -447,6 +447,15 @@ export class JobsService {
      * knowing anything about it -- the SGF-specific `/upload` route only exists for the
      * legacy client.
      *
+     * **A service may declare more than one file field.** `file_field` names a single
+     * field and is what the first client sent, so it still works. `file_fields` is the
+     * general form: a comma-separated field name per uploaded file, in the same order,
+     * which is how a service like intonationCheck receives a reference clip, a clip to
+     * check and a score as three separate inputs. Without this, every file landed on one
+     * field and any multi-input service was unsubmittable -- it validated (the required
+     * names were all present in params) and then failed in the worker, where the second
+     * and third inputs did not exist.
+     *
      * Files are stored per job and fetched by the worker, rather than inlined in the
      * job row, so a large input does not slow down every status query.
      */

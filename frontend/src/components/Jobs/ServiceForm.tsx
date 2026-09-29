@@ -228,31 +228,41 @@ export function ServiceForm({ service, onDone }: { service: string; onDone: () =
 
   const required = new Set(schema.required ?? [])
 
-  // The service declares WHICH field takes files, via format: "files". The frontend
+  // The service declares WHICH fields take files, via format: "files". The frontend
   // must not assume a name -- that would be per-service knowledge, which is exactly
-  // what this whole design avoids.
-  const fileField = Object.entries(schema.properties ?? {}).find(
-    ([, p]) => controlFor(p) === "files",
-  )?.[0]
+  // what this whole design avoids. There can be more than one (intonationCheck takes
+  // a reference clip, a clip to check and a score), so this collects all of them:
+  // picking just the first silently dropped the other inputs.
+  const fileFields = Object.entries(schema.properties ?? {})
+    .filter(([, p]) => controlFor(p) === "files")
+    .map(([name]) => name)
 
   const submit = async () => {
     setBusy(true)
     try {
       const params: Record<string, unknown> = { ...current }
-      let files: File[] = []
-      if (fileField) {
-        const picked = current[fileField] as FileList | null
-        files = picked ? Array.from(picked) : []
+      const files: File[] = []
+      const fileFieldsByIndex: string[] = []
+      for (const name of fileFields) {
+        const picked = current[name] as FileList | null
+        if (picked && picked.length) {
+          for (const f of Array.from(picked)) {
+            files.push(f)
+            fileFieldsByIndex.push(name)
+          }
+        }
         // the files travel as multipart parts, not inside the params JSON
-        delete params[fileField]
+        delete params[name]
       }
       // the generated client applies the multipart serializer, so the body is the
-      // fields themselves rather than hand-built FormData
+      // fields themselves rather than hand-built FormData. file_fields is one name
+      // per file, positionally, so the broker can put each part on its own field.
       await JobsService.submitJobGeneric({
         body: {
           service,
           params: JSON.stringify(params),
-          file_field: fileField ?? "input",
+          file_field: fileFields[0] ?? "input",
+          file_fields: fileFieldsByIndex.join(","),
           files,
         },
       })
@@ -286,7 +296,7 @@ export function ServiceForm({ service, onDone }: { service: string; onDone: () =
           value={current[name]}
         />
       ))}
-      {fileField ? (
+      {fileFields.length ? (
         <p className="text-muted-foreground text-xs">
           Files are sent with the job and fetched by the worker on claim.
         </p>
