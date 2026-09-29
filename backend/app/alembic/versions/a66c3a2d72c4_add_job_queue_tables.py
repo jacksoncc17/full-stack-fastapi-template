@@ -40,7 +40,7 @@ def upgrade():
         sa.Column(
             "api_key_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=False
         ),
-        sa.Column("capabilities", sa.Text(), nullable=True),
+        sa.Column("capabilities", sa.JSON(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("last_heartbeat_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),

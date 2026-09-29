@@ -31,7 +31,15 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, Index, LargeBinary, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Index,
+    LargeBinary,
+    Text,
+    UniqueConstraint,
+)
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -70,7 +78,10 @@ class Worker(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(max_length=128, unique=True, index=True)
     api_key_hash: str
-    capabilities: dict | None = Field(default=None, sa_column=Column(Text))
+    # JSON, not Text: psycopg cannot adapt a Python dict to a plain text
+    # column ("cannot adapt type 'dict'"), which surfaced as a 500 on the
+    # worker heartbeat the first time a worker reported its capabilities.
+    capabilities: dict | None = Field(default=None, sa_column=Column(JSON))
     is_active: bool = True
     last_heartbeat_at: datetime | None = Field(
         default=None, sa_type=DateTime(timezone=True)  # type: ignore

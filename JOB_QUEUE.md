@@ -154,3 +154,60 @@ Verified against a fresh database on Python 3.14:
 | `upgrade head` from empty | 6 migrations, all tables incl. the 5 new ones |
 | `downgrade -1` | exactly the 5 queue tables dropped, template tables untouched |
 | `upgrade head` again | 5 tables restored |
+
+## Worker loop (`worker.py`)
+
+Claims jobs, runs the render, uploads artifacts, reports completion.
+
+```bash
+export WORKER_KEY=...
+python3 worker.py --broker http://127.0.0.1:8000/api/v1 \
+    --toolkit /path/to/selfCommentary --name worker-1
+```
+
+`--once` processes one job and exits. `--fake-pipeline` skips the real render and
+fabricates artifacts, so the queue plumbing can be exercised without spending
+minutes per job.
+
+**Standard library only.** The toolkit needs Pillow and ffmpeg and runs on the
+system interpreter; the broker needs SQLModel on Python 3.14. The worker is
+deliberately dependency-free so a change to either environment cannot break it.
+
+**The lease is renewed on a background thread**, and losing it is fatal: it means
+another worker owns the job, so the run stops rather than doing work whose upload
+will be rejected. `--lease-seconds` defaults to an hour because a real render is
+minutes long and the lease is the only thing preventing a duplicate claim.
+
+**The SGF keeps its original filename.** `go_music_video.py` derives its output
+directory and filenames from the SGF stem, so writing it as `game.sgf` would lose
+the naming the user expects.
+
+**Artifacts upload one file at a time**, so a job that fails halfway still leaves
+its successful outputs visible, and `store_artifact` upserts by `(job, kind)` so a
+retry replaces rather than duplicates.
+
+### Verified
+
+Against the live API, with the fake pipeline:
+
+```
+[21:33:05] claimed job 80ccbba9-...(attempt 1) dur=60.0s formats=mp4,webp
+[21:33:05]   uploaded mp3             fake.mp3      0.00 MB
+[21:33:05]   uploaded mp4             fake.mp4      0.00 MB
+[21:33:05]   uploaded webp            fake.webp     0.00 MB
+[21:33:05]   uploaded programme_html  programme.html 0.00 MB
+[21:33:05] job 80ccbba9-... SUCCEEDED (4 artifacts)
+```
+
+Database after the run: job `succeeded`, progress 100, attempts 1, and each
+artifact's `claimed` size equals its stored `bytea` length with the mime type
+inferred per kind. The event log captured the whole path including an earlier
+lease-expiry → requeue → retry sequence from the concurrency test.
+
+### A bug this found
+
+`Worker.capabilities` was declared `dict` on a `Text` column. That works until a
+worker actually reports capabilities, at which point psycopg raises
+`cannot adapt type 'dict'` and the heartbeat returns 500. It is now a `JSON`
+column. The queue verification suite was re-run afterwards (19/19) to confirm the
+change did not regress anything.
