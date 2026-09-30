@@ -10,15 +10,21 @@ makes a cheap droplet sufficient.
 ```
         INTERNET                         YOUR LAN
   ┌──────────────────────┐        ┌──────────────────────────┐
-  │ DigitalOcean droplet │        │ worker.py                │
-  │  Traefik (443, LE)   │◀───────│   polls the broker       │
+  │ DigitalOcean droplet │        │ worker (one per service) │
+  │  Traefik (443, LE)   │◀───────│  lan-sgf                 │
   │  backend  :8000      │  HTTPS │   runs go_music_video.py │
-  │   - /api/v1/*        │        │   uploads artifacts      │
-  │   - the built SPA    │        └──────────────────────────┘
-  │  db (postgres)       │             needs: KataGo host,
-  └──────────────────────┘                     ACE-Step server
-     holds jobs + results
+  │   - /api/v1/*        │        │  lan-intonation          │
+  │   - the built SPA    │        │   aligns clips to score  │
+  │  db (postgres)       │        └──────────────────────────┘
+  └──────────────────────┘           lan-sgf needs: KataGo
+     holds jobs + results                     host, ACE-Step
+                                     lan-intonation needs:
+                                       neither -- just its venv
 ```
+
+Nothing on the LAN needs a public IP, a port forward or dynamic DNS. The broker is idle
+between jobs, which is what makes a small droplet sufficient -- it holds the queue and
+the artifacts, and never renders.
 
 The worker only ever makes **outbound HTTPS** calls, so nothing on your home
 network needs a public IP, port forward, or dynamic DNS.
@@ -129,28 +135,73 @@ curl -s https://<domain>/api/v1/utils/health-check/    # -> true
 Tables and the first superuser are created by `backend/scripts/prestart.sh`, which
 the backend entrypoint runs — no manual migration step.
 
-### 7. Register a worker, then run it on your LAN
+### 7. Register workers, then run them on your LAN
+
+**One worker runs one service.** The broker keeps a single `WorkerService` row per
+worker and the claim query filters `Job.service == service`, so a worker that announces
+two services ends up bound to whichever was published last. Run one worker per service,
+each with its own API key.
 
 ```bash
-# on the droplet, or from anywhere with an admin login
-curl -s -X POST https://<domain>/api/v1/admin/workers/ \
-  -H "Authorization: Bearer <admin token>" \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"lan-worker-1"}'
-# => {"api_key": "...", ...}   copy it, it is shown once
+# once per service -- the key is shown only here
+for name in lan-sgf lan-intonation; do
+  curl -s -X POST https://<domain>/api/v1/admin/workers/ \
+    -H "Authorization: Bearer <admin token>" \
+    -H 'Content-Type: application/json' \
+    -d "{\"name\":\"$name\"}"
+done
 ```
 
 Then on the LAN machine that can reach KataGo and ACE-Step:
 
 ```bash
-export WORKER_KEY=<api_key>
-python3 worker.py --broker https://<domain>/api/v1 \
-  --name lan-worker-1 --toolkit /path/to/selfCommentary
+# sgf_video -- needs the toolkit (go_music_video.py), plus KataGo and ACE-Step
+.venv/bin/python worker.py --broker https://<domain>/api/v1 --key <key-sgf> \
+  --name lan-sgf --service sgf_video --toolkit /path/to/selfCommentary
+
+# intonationCheck -- needs the service venv; NO toolkit, KataGo or ACE-Step
+.venv-intonation/bin/python worker.py --broker https://<domain>/api/v1 \
+  --key <key-intonation> --name lan-intonation --service intonationCheck \
+  --plugin-dir /path/to/selfCommentary/services
 ```
 
-Run it under `systemd` or `tmux` so it survives logout — see `worker.service`.
+Two details that are easy to get wrong:
+
+* **`--service` is not optional once a worker can see several plugins.** Without it the
+  worker publishes every plugin it loaded and warns that the last one wins, which leaves
+  it silently claiming only that service and quietly ignoring the rest of the queue.
+* **Each worker needs the interpreter that has its own dependencies.** `intonationCheck`
+  imports librosa, verovio, cairosvg and pymupdf, so it must run under
+  `.venv-intonation/bin/python`; a bare `python3 worker.py` fails with
+  `ModuleNotFoundError: No module named 'librosa'`. `sgf_video` needs the toolkit venv
+  instead. The two services have deliberately different dependency sets, which is why
+  they are separate processes rather than one worker with `--service` switched at runtime.
+
+Run each under `systemd` or `tmux` so it survives logout. `worker.service` is a template:
+copy it per service, change `User`, the paths, `WORKER_KEY` and the `--service` value —
+its `ExecStart` as committed is the older single-service form and will not bind correctly
+on its own.
 
 ## Operational notes
+
+* **Adminer is exposed without authentication, and you should drop it.** The base
+  `compose.yml` enables Traefik for `adminer`, and `compose.deploy.yml` adds a router for
+  `Host(`adminer.${DOMAIN}`)` with TLS via the Let's Encrypt resolver. There is no
+  basic-auth middleware anywhere in the repo — `grep -rn "basicauth\|middlewares"
+  compose*.yml` returns nothing. In the local stack that is harmless because
+  `compose.override.yml` publishes it on `localhost:8080` only; in the deploy stack it is
+  a public, TLS-protected, unauthenticated database admin UI in front of your job queue
+  and every worker API key. Note also that the template's own
+  `deployment-docker-compose.md` tells you to create that DNS record, so following the
+  documentation is what exposes it.
+
+  To leave it out:
+  ```bash
+  docker compose -f compose.yml -f compose.deploy.yml --exclude adminer up -d
+  ```
+  Verified: `docker compose config` on the deploy overlay publishes only 80 and 443, both
+  from `proxy`. `backend` and `db` publish nothing, so Postgres is not reachable from
+  outside — but an authenticated-but-public Adminer is a separate door into the same data.
 
 * **The worker is the only thing that needs the LAN.** Because dispatch is
   pull-based, the worker can sit behind NAT indefinitely — it just polls.
