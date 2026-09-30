@@ -266,21 +266,31 @@ ${c_grn}==> deployed${c_off}  https://${DOMAIN_VAL}
 
   Sign in with ${ADMIN_EMAIL} and the FIRST_SUPERUSER_PASSWORD in .env.
 
-  Register a worker (the key is shown once):
+  Register one worker PER SERVICE (each key is shown once). One worker runs one
+  service: the broker stores a single service binding per worker, so a worker that
+  announces two ends up bound to whichever was published last and silently ignores
+  the rest of the queue.
 
-    TOKEN=\$(curl -s -X POST https://${DOMAIN_VAL}/api/v1/login/access-token \\
-      -H 'Content-Type: application/x-www-form-urlencoded' \\
-      -d 'username=${ADMIN_EMAIL}&password=<FIRST_SUPERUSER_PASSWORD>' \\
-      | python3 -c 'import json,sys;print(json.load(sys.stdin)["access_token"])')
+    for name in lan-sgf lan-intonation; do
+      curl -s -X POST https://${DOMAIN_VAL}/api/v1/admin/workers/ \\
+        -H "Authorization: Bearer \$TOKEN" -H 'Content-Type: application/json' \\
+        -d "{\\"name\\":\\"\$name\\"}"
+    done
 
-    curl -s -X POST https://${DOMAIN_VAL}/api/v1/admin/workers/ \\
-      -H "Authorization: Bearer \$TOKEN" -H 'Content-Type: application/json' \\
-      -d '{"name":"lan-worker-1"}'
+  Then on the LAN machine, with the interpreter each service needs:
 
-  Then on the LAN machine that can reach KataGo and ACE-Step:
+    # sgf_video -- toolkit venv, plus KataGo and ACE-Step
+    .venv/bin/python worker.py --broker https://${DOMAIN_VAL}/api/v1 \\
+      --key <key-sgf> --name lan-sgf --service sgf_video \\
+      --toolkit /path/to/selfCommentary
 
-    python3 worker.py --broker https://${DOMAIN_VAL}/api/v1 \\
-      --key <api_key> --name lan-worker-1 --toolkit /path/to/selfCommentary
+    # intonationCheck -- its own venv; no toolkit, KataGo or ACE-Step
+    .venv-intonation/bin/python worker.py --broker https://${DOMAIN_VAL}/api/v1 \\
+      --key <key-intonation> --name lan-intonation --service intonationCheck \\
+      --plugin-dir /path/to/selfCommentary/services
+
+  Adminer is NOT running (it is behind a compose profile, deliberately -- it has no
+  auth and would otherwise be public). Add --profile debug to compose to bring it up.
 
   Re-run this script after code changes:  ./deploy/deploy.sh --no-build
 EOF

@@ -36,6 +36,19 @@ services:
 
   adminer:
     restart: always
+    # Gated behind a profile so it does NOT start in a deploy. The base compose.yml
+    # enables Traefik for adminer, this overlay gives it `adminer.${DOMAIN}` with a
+    # Let's Encrypt certificate, and there is no auth middleware anywhere in the repo --
+    # so without this line the deploy stack puts an unauthenticated database admin UI on
+    # the public internet, in front of the job queue and every worker API key.
+    #
+    # It was harmless in development only because compose.override.yml publishes it on
+    # localhost:8080 instead. Note that the template's own deployment-docker-compose.md
+    # tells you to create the adminer DNS record, so following the documentation is what
+    # exposes it.
+    #
+    # To bring it up deliberately:  docker compose ... --profile debug up -d
+    profiles: ["debug"]
     labels:
       # Route HTTPS traffic for the Adminer subdomain
       - traefik.http.routers.adminer-https.rule=Host(`adminer.${DOMAIN:?Variable not set}`)

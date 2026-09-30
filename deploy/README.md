@@ -184,24 +184,31 @@ on its own.
 
 ## Operational notes
 
-* **Adminer is exposed without authentication, and you should drop it.** The base
-  `compose.yml` enables Traefik for `adminer`, and `compose.deploy.yml` adds a router for
-  `Host(`adminer.${DOMAIN}`)` with TLS via the Let's Encrypt resolver. There is no
+* **Adminer is gated off in the deploy stack, and should stay that way.** The base
+  `compose.yml` enables Traefik for `adminer` and `compose.deploy.yml` gives it
+  `Host(`adminer.${DOMAIN}`)` with TLS via the Let's Encrypt resolver, and there is no
   basic-auth middleware anywhere in the repo — `grep -rn "basicauth\|middlewares"
-  compose*.yml` returns nothing. In the local stack that is harmless because
-  `compose.override.yml` publishes it on `localhost:8080` only; in the deploy stack it is
-  a public, TLS-protected, unauthenticated database admin UI in front of your job queue
-  and every worker API key. Note also that the template's own
-  `deployment-docker-compose.md` tells you to create that DNS record, so following the
-  documentation is what exposes it.
+  compose*.yml` returns nothing. Left alone that is an unauthenticated database admin UI
+  on the public internet, in front of the job queue and every worker API key. It was
+  harmless in development only because `compose.override.yml` publishes it on
+  `localhost:8080` instead. The template's own `deployment-docker-compose.md` tells you
+  to create that DNS record, so following the documentation is what would expose it.
 
-  To leave it out:
-  ```bash
-  docker compose -f compose.yml -f compose.deploy.yml --exclude adminer up -d
+  `compose.deploy.yml` therefore puts it behind a profile, so it is not started by a
+  deploy and not started by `deploy.sh`:
+
   ```
-  Verified: `docker compose config` on the deploy overlay publishes only 80 and 443, both
-  from `proxy`. `backend` and `db` publish nothing, so Postgres is not reachable from
-  outside — but an authenticated-but-public Adminer is a separate door into the same data.
+  docker compose -f compose.yml -f compose.deploy.yml config --services
+  # proxy, db, backend        <- no adminer
+
+  docker compose ... --profile debug up -d    # when you actually want it
+  ```
+
+  Verified: with the deploy overlay the default set is `proxy, db, backend`; adding
+  `--profile debug` brings `adminer` back; the dev stack (`compose.yml` +
+  `compose.override.yml`) still has it, unchanged. Only `proxy` publishes any port
+  (80 and 443) and `db` publishes none, so Postgres is not reachable from outside —
+  but an unauthenticated Adminer would have been a separate door into the same data.
 
 * **The worker is the only thing that needs the LAN.** Because dispatch is
   pull-based, the worker can sit behind NAT indefinitely — it just polls.
