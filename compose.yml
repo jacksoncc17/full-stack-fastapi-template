@@ -61,6 +61,19 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL}
+      # Google sign-in. These MUST be named here: `environment:` is an explicit
+      # allow-list, so a variable present in .env is still invisible to the container
+      # unless it is listed. Leaving them out made the entire Google section of
+      # deploy/env.production.example a no-op -- setting both values in .env still gave
+      # {"enabled": false} from /api/v1/auth/google/status, the button never rendered,
+      # and nothing anywhere reported an error.
+      #
+      # Defaulted to empty rather than required: when unset, config.py's own defaults
+      # (localhost) apply, so local development is unchanged.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      FRONTEND_OAUTH_REDIRECT: ${FRONTEND_OAUTH_REDIRECT:-}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Variable not set}@db:5432/app
       SENTRY_DSN: ${SENTRY_DSN:-}
       # Artifact bytes go to this mounted volume rather than the database. It must
