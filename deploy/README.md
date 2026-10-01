@@ -132,8 +132,26 @@ docker compose logs -f backend      # watch it come up
 curl -s https://<domain>/api/v1/utils/health-check/    # -> true
 ```
 
-Tables and the first superuser are created by `backend/scripts/prestart.sh`, which
-the backend entrypoint runs — no manual migration step.
+Tables and the first superuser are created by `backend/scripts/prestart.sh` — `alembic
+upgrade head` then `initial_data.py` — which the image's **entrypoint** runs before
+starting the server. No manual migration step, and nothing to remember.
+
+That sentence was false until recently: the image declared only
+`CMD ["fastapi", "run", ...]` with no entrypoint, and nothing in the deploy path invoked
+`prestart.sh`. A fresh droplet then came up reporting healthy with an empty database
+schema, so the first login failed with a bare 400 and any query died on
+
+```
+sqlalchemy.exc.ProgrammingError: (psycopg.errors.UndefinedTable) relation "user" does not exist
+```
+
+**If you deployed before this fix**, the database on that droplet has no tables. Either
+redeploy (the entrypoint will create everything on start) or run it once by hand:
+
+```bash
+docker compose -f compose.yml -f compose.deploy.yml run --rm --entrypoint bash \
+  backend -c 'bash scripts/prestart.sh'
+```
 
 ### 7. Register workers, then run them on your LAN
 

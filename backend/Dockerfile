@@ -62,4 +62,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
+# Migrate and seed before serving. Without this the container starts happily against an
+# empty database and every request fails with `relation "user" does not exist`, and the
+# first superuser is never created so login returns a bare 400. The entrypoint applies
+# `alembic upgrade head` and `initial_data.py` first; both are safe to repeat on every
+# start, so this costs nothing on a warm database.
+COPY ./backend/scripts/entrypoint.sh /app/backend/scripts/entrypoint.sh
+RUN chmod +x /app/backend/scripts/entrypoint.sh
+ENTRYPOINT ["/app/backend/scripts/entrypoint.sh"]
+
 CMD ["fastapi", "run", "--workers", "4"]
