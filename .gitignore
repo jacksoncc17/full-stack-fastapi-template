@@ -10,6 +10,18 @@ backend/app/frontend/
 # real credentials; see .env.secret.example
 .env.secret
 
+# Editor scratch files for .env. A vim swap file for .env contains the file's contents
+# in plaintext, so `git add .` would commit SECRET_KEY, POSTGRES_PASSWORD and
+# FIRST_SUPERUSER_PASSWORD. .env itself is tracked in this repo (it holds only
+# `changethis` placeholders in development), which makes the scratch files easy to
+# overlook: they are a different filename, so ignoring .env does not cover them.
+.*.sw?
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+
 # local build caches (bun/npm need their caches redirected here because $HOME is
 # read-only in some sandboxes)
 .caches/
