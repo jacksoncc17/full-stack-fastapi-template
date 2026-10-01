@@ -195,10 +195,28 @@ Two details that are easy to get wrong:
   instead. The two services have deliberately different dependency sets, which is why
   they are separate processes rather than one worker with `--service` switched at runtime.
 
-Run each under `systemd` or `tmux` so it survives logout. `worker.service` is a template:
-copy it per service, change `User`, the paths, `WORKER_KEY` and the `--service` value —
-its `ExecStart` as committed is the older single-service form and will not bind correctly
-on its own.
+Run each under `systemd` or `tmux` so it survives logout. Two ready-made units are
+provided because the services need **different interpreters** — `worker-intonation.service`
+uses `.venv-intonation/bin/python` (librosa, verovio, cairosvg, pymupdf) and
+`worker-sgf.service` uses `.venv/bin/python` (the toolkit's numpy, soundfile, Pillow).
+Each already passes `--service` and the right `--plugin-dir`/`--toolkit`.
+
+```bash
+sudo cp deploy/worker-intonation.service deploy/worker-sgf.service /etc/systemd/system/
+sudo systemctl edit worker-intonation    # set WORKER_KEY and the paths
+sudo systemctl enable --now worker-intonation worker-sgf
+```
+
+Two things to edit for your machine: `User`, and the absolute paths (`WorkingDirectory`,
+`PLUGIN_DIR`/`TOOLKIT_DIR`, and the interpreter in `ExecStart`). `WORKER_KEY` is per
+service — each worker gets its own from `/admin/workers/`.
+
+> **The interpreter cannot be a `${VAR}`.** systemd expands variables in `ExecStart`
+> *arguments* but not in the command path: `ExecStart=${PY} worker.py` fails with
+> `Command ${PY} is not executable: No such file or directory`, because the first token
+> must be a real path at parse time. The units therefore spell the interpreter out in
+> full, and `systemd-analyze verify` passes on both. That check is worth running after
+> editing a unit — it catches this class of mistake before a restart does.
 
 ## Operational notes
 

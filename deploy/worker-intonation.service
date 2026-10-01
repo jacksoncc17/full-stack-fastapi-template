@@ -1,0 +1,68 @@
+# systemd unit for the LAN intonationCheck worker.
+#
+#   sudo cp deploy/worker-intonation.service /etc/systemd/system/
+#   sudo systemctl edit worker-intonation     # set WORKER_KEY and the paths
+#   sudo systemctl enable --now worker-intonation
+#
+# One unit per service, and this one exists separately from worker-sgf.service because
+# the two need DIFFERENT interpreters: intonationCheck imports librosa, soundfile,
+# verovio, cairosvg and pymupdf, which are installed only in .venv-intonation. The
+# system python3 has none of them, so running this unit with /usr/bin/python3 fails with
+#
+#     ModuleNotFoundError: No module named 'librosa'
+#
+# a few seconds into the first job, after the worker looks healthy.
+#
+# Why a unit rather than nohup: the worker must survive reboots and network changes, and
+# Restart=always turns a crash into seconds of downtime rather than a stalled queue. The
+# worker also retries broker outages itself; the unit covers process death and reboots.
+[Unit]
+Description=Intonation check worker (broker job queue)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wei
+# The worker imports its plugin in-process, so it must be launched from the repo that
+# holds worker.py. The interpreter is named absolutely below; this is the cwd it needs.
+WorkingDirectory=/home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template
+
+# WORKER_KEY is returned once by POST /api/v1/admin/workers/ and cannot be retrieved
+# again. Keep the broker URL's /api/v1 suffix -- without it the worker 404s on publish
+# and exits 2.
+Environment=WORKER_KEY=REPLACE_ME
+Environment=BROKER_URL=https://broker.example.com/api/v1
+Environment=WORKER_NAME=lan-intonation
+# Where the service packages live: the PARENT of intonationCheck/, not the service
+# directory itself.
+Environment=PLUGIN_DIR=/home/wei/playground/goGames/selfCommentary/services
+
+# The interpreter is written out in full, NOT as ${VAR}. systemd expands variables in
+# ExecStart arguments but not in the command path itself -- `ExecStart=${PY} worker.py`
+# fails with `Command ${PY} is not executable: No such file or directory`, because the
+# first token has to be a real path at parse time. Checked with systemd-analyze verify.
+#
+# This MUST be the .venv-intonation interpreter: the service imports librosa,
+# soundfile, verovio, cairosvg and pymupdf, and the system python3 has none of them.
+#
+# --service is required, not optional. The bundled plugins (sgf_video, tarot_draw) are
+# loaded as well, and without this the worker publishes all of them and binds to
+# whichever came last -- silently ignoring every intonationCheck job.
+ExecStart=/home/wei/playground/goGames/selfCommentary/.venv-intonation/bin/python \
+    worker.py \
+    --broker ${BROKER_URL} \
+    --key ${WORKER_KEY} \
+    --name ${WORKER_NAME} \
+    --service intonationCheck \
+    --plugin-dir ${PLUGIN_DIR}
+
+# Alignment and engraving take seconds to a minute; give the job room to finish and
+# restart on any exit.
+Restart=always
+RestartSec=10
+# Long enough for a job in flight to complete rather than being killed mid-run.
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

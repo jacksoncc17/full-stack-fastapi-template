@@ -208,5 +208,8 @@ reaches **KataGo over SSH** and **ACE-Step over HTTP**. A worker without those w
 claim a job and fail it with a clear error. Use `--fake-pipeline` to test the plumbing
 anywhere.
 
-For a long-running worker, see `deploy/worker.service` -- a systemd unit, so it
-survives reboots and network changes.
+For a long-running worker, see `deploy/worker-intonation.service` and
+`deploy/worker-sgf.service` -- systemd units, so they survive reboots and network
+changes. There is one per service because each needs a different interpreter (the
+intonation worker's dependencies are not in the toolkit venv), and both already pass
+`--service`, which is required once more than one plugin is loadable.

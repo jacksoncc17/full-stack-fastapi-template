@@ -1,0 +1,52 @@
+# systemd unit for the LAN sgf_video worker.
+#
+#   sudo cp deploy/worker-sgf.service /etc/systemd/system/
+#   sudo systemctl edit worker-sgf        # set WORKER_KEY and the paths
+#   sudo systemctl enable --now worker-sgf
+#
+# One unit per service: the broker keeps a single service binding per worker, so a
+# worker that announces two services binds to whichever was published last and silently
+# ignores the rest of the queue.
+#
+# This service needs the TOOLKIT (go_music_video.py) in addition to the repo, plus a
+# reachable KataGo host and ACE-Step server. The intonationCheck worker needs none of
+# those -- see worker-intonation.service, which also uses a different interpreter.
+#
+# The interpreter must be the toolkit venv: this worker shells out to the toolkit, which
+# imports numpy, soundfile and Pillow. The system python3 has none of them.
+[Unit]
+Description=SGF video render worker (broker job queue)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wei
+WorkingDirectory=/home/wei/playground/goGames/selfCommentary/full-stack-fastapi-template
+
+# WORKER_KEY is returned once by POST /api/v1/admin/workers/ and cannot be retrieved
+# again. Keep the /api/v1 suffix on the broker URL.
+Environment=WORKER_KEY=REPLACE_ME
+Environment=BROKER_URL=https://broker.example.com/api/v1
+Environment=WORKER_NAME=lan-sgf
+Environment=TOOLKIT_DIR=/home/wei/playground/goGames/selfCommentary
+
+# Written out in full, not ${VAR}: systemd does not expand variables in the command
+# path, only in its arguments. Must be the toolkit venv, which carries numpy,
+# soundfile and Pillow for the toolkit this worker shells out to.
+ExecStart=/home/wei/playground/goGames/selfCommentary/.venv/bin/python \
+    worker.py \
+    --broker ${BROKER_URL} \
+    --key ${WORKER_KEY} \
+    --name ${WORKER_NAME} \
+    --service sgf_video \
+    --toolkit ${TOOLKIT_DIR}
+
+# A render holds a CPU for minutes. TimeoutStopSec has to exceed the longest job you
+# want to let finish, or systemd kills a render mid-write on restart or shutdown.
+Restart=always
+RestartSec=10
+TimeoutStopSec=1800
+
+[Install]
+WantedBy=multi-user.target

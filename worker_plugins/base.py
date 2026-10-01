@@ -135,15 +135,11 @@ def artifact_kinds_valid(kinds: Iterable) -> bool:
     return all(isinstance(k, str) and k for k in kinds)
 
 
-def check_schema_supported(schema: dict) -> None:
-    """Refuse a schema the broker's validator cannot fully enforce.
-
-    Imported lazily so a plugin can be loaded on a machine without the broker's
-    package on the path (the worker only needs it when it registers).
-    """
-    from app.param_schema import SchemaError, check_schema
-
-    try:
-        check_schema(schema)
-    except SchemaError as e:
-        raise PluginError(f"unsupported param_schema: {e}") from e
+# `check_schema_supported(schema)` used to live here. It imported the broker's
+# `app.param_schema` -- a backend module that is NOT on the worker's path, since the
+# worker only ever has `worker_plugins` and the plugin directories -- and it was never
+# called by anything. Its docstring claimed the worker ran it at registration, which
+# was wrong: registration is the broker's job. POST /worker/services validates the
+# schema server-side (`param_schema.check_schema`) and answers 422, so a service with
+# an unsupported schema is refused where the check can actually be enforced, and the
+# worker needs no access to the backend package.
