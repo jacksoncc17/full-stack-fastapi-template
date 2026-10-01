@@ -222,7 +222,46 @@ fi
 # ---------------------------------------------------------------- 4. pull
 if [ "$PULL" = 1 ] && [ -d "$ROOT/.git" ]; then
   say "pulling latest code"
-  run git -C "$ROOT" pull --ff-only || warn "git pull failed (local changes?) -- continuing with the working tree as-is"
+  if [ "$DRY_RUN" = 1 ]; then
+    note "would run: git -C $ROOT pull --ff-only"
+  elif run git -C "$ROOT" pull --ff-only; then
+    :
+  else
+    # Do NOT continue here. Continuing means building the image from whatever code
+    # happens to be on disk, which is how a failed pull turns into "I deployed the fix
+    # and it did not take effect" -- the exact confusion this script exists to avoid.
+    # `--no-pull` remains for deliberately deploying the working tree as-is.
+    warn "git pull --ff-only failed -- refusing to deploy stale code"
+    branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+    upstream="$(git -C "$ROOT" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+    echo >&2
+    echo "    branch:   $branch" >&2
+    echo "    upstream: ${upstream:-<none configured>}" >&2
+    if [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then
+      # Only mention this when a fast-forward is actually possible. A push to an
+      # unrelated branch also reports "diverged", and blaming local changes there
+      # would send you off deleting edits that were never the problem.
+      if [ -n "$upstream" ] && git -C "$ROOT" merge-base --is-ancestor \
+           "$upstream" "$branch" 2>/dev/null; then
+        echo "    local changes are blocking the fast-forward:" >&2
+        git -C "$ROOT" status --short >&2 | head -5
+        echo "      -> commit, stash, or discard them, then re-run" >&2
+      fi
+    fi
+    if [ -n "$upstream" ] && ! git -C "$ROOT" merge-base --is-ancestor \
+         "$branch" "$upstream" 2>/dev/null; then
+      echo "    '$branch' and '$upstream' have DIVERGED -- no merge or rebase can" >&2
+      echo "    reconcile unrelated histories. This usually means the remote branch" >&2
+      echo "    was force-pushed, for example to repoint a default branch." >&2
+      echo "      -> to take the remote exactly (discards local changes on tracked files):" >&2
+      echo "           git -C $ROOT fetch origin" >&2
+      echo "           git -C $ROOT reset --hard $upstream" >&2
+    fi
+    echo >&2
+    echo "    Or deploy the working tree as-is, without pulling:" >&2
+    echo "      ./deploy/deploy.sh --no-pull" >&2
+    die "pull failed"
+  fi
 else
   note "skipping git pull"
 fi
