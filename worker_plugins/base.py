@@ -1,10 +1,11 @@
 """
 The service plugin contract.
 
-A service is the unit of work this system schedules. Adding one means writing a
-class in `worker_plugins/` that implements `ServicePlugin` -- there is no registry to
-edit, no broker change, and no migration. The loader finds it by importing the
-package.
+A service is the unit of work this system schedules. Adding one means writing a class that
+implements `ServicePlugin` -- there is no registry to edit, no broker change, and no
+migration. The loader finds it by importing the package: a single module in
+`worker_plugins/` for a small bundled service, or a module/package in a directory passed
+with `--plugin-dir`, which is where the real services live.
 
 Why the split is where it is: the broker schedules jobs, the worker runs them. The
 broker therefore only needs a service's *contract* (name, param schema, what kinds of

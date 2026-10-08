@@ -79,18 +79,34 @@ read as something the *submitter* can act on rather than a stack trace.
 **`--plugin-dir`** loads plugins from outside this package, so a deployment can ship
 service code separately from the worker.
 
-**A service is either a module or a package.** In the bundled `worker_plugins/` it is
-one file per service, which is the right default. In a `--plugin-dir` it may also be a
-directory:
+**A service is either a module or a package.** In the bundled `worker_plugins/` it must be
+one file per service — the loader scans that package for modules only — so `tarot_draw` is
+the shape a bundled service takes. A service that is a directory has to come from a
+`--plugin-dir`:
 
 ```
 services/
+  sgf_video/                <- package: the SGF render service (moved out of here)
+    __init__.py             <- re-exports `plugin`
+    service.py              <- the contract: name, param_schema, artifact_kinds, run
+    go_music_video.py       <- ...and the pipeline only this service runs
   intonationCheck/          <- package: one service, several modules
     __init__.py             <- re-exports `plugin`
-    plugin.py               <- the contract: name, param_schema, artifact_kinds, run
+    service.py              <- the contract: name, param_schema, artifact_kinds, run
     score.py  pitch.py  report.py
     tests/
 ```
+
+**The implementation must not be a file called `plugin.py`.** A submodule is bound onto its
+parent package under its own name, so `plugin.py` would set the package's `plugin` attribute
+to the module — shadowing the factory the loader reads and turning a valid service into
+`no plugin found`. Name it anything else (`service.py` by convention here).
+
+`sgf_video` lives there rather than here because the code a service runs belongs next to
+the service, not in the worker's own package — and because this package ships with the
+broker, while a real pipeline depends on a toolkit the broker repo does not have. A worker
+for it therefore needs `--plugin-dir /path/to/services`, or it will not find the service at
+all.
 
 Use a package when the service genuinely needs more than one file — a parser, a
 measurement, a renderer — and wants them kept together with their own tests. Two rules
@@ -176,14 +192,15 @@ curl -s -X POST http://localhost:8000/api/v1/admin/workers/ \
   -d '{"name":"sgf-worker-1"}'
 # => {"api_key": "...", ...}   the key is shown ONCE
 
-# 2. see what this checkout can run
-python3 worker.py --list-services
+# 2. see what this checkout can run (--plugin-dir is what finds services/)
+python3 worker.py --list-services --plugin-dir /path/to/selfCommentary/services
 
 # 3. run the SGF service for real
 python3 worker.py --broker http://localhost:8000/api/v1 \
   --key <api_key> --name sgf-worker-1 \
   --service sgf_video \
-  --toolkit /path/to/selfCommentary
+  --plugin-dir /path/to/selfCommentary/services \
+  --toolkit /path/to/selfCommentary/sgf_tools
 ```
 
 On startup it **publishes its contract** (so the broker learns the parameter schema and
@@ -194,7 +211,7 @@ binds this worker to `sgf_video`) and then polls for jobs of that service only.
 | flag | why |
 |---|---|
 | `--service sgf_video` | pick one plugin explicitly. Without it every loaded plugin is published, and **the broker binds a worker to one service — the last published wins** |
-| `--toolkit /path` | where `go_music_video.py` lives. Only the SGF service needs it |
+| `--toolkit /path` | the checkout's `sgf_tools/` directory, where the steps the SGF pipeline shares with non-service tools live (`remote_katago.py`, `sgf_animate.py`). Passed to the plugin as `--shared-dir`. Only the SGF service needs it |
 | `--fake-pipeline` | stub artifacts, no render. Exercises the queue in seconds |
 | `--plugin-dir /path` | load plugins from outside this package |
 | `--lease-seconds 3600` | must exceed the longest render; the lease auto-renews every ~5 min anyway |
@@ -203,10 +220,13 @@ binds this worker to `sgf_video`) and then polls for jobs of that service only.
 
 ### The toolkit requirement
 
-Only `sgf_video` needs `--toolkit`, and it needs more than the script: the pipeline
-reaches **KataGo over SSH** and **ACE-Step over HTTP**. A worker without those will
-claim a job and fail it with a clear error. Use `--fake-pipeline` to test the plumbing
-anywhere.
+Only `sgf_video` needs `--toolkit`, and it is not what finds `go_music_video.py` — that
+ships inside `services/sgf_video/`. It names the checkout's `sgf_tools/`, where the two
+steps the pipeline shares with tools that are not services (`remote_katago.py`,
+`sgf_animate.py`) live; the plugin forwards it as `--shared-dir`. The service also needs more than code: the
+pipeline reaches **KataGo over SSH** and **ACE-Step over HTTP**. A worker without those
+will claim a job and fail it with a clear error. Use `--fake-pipeline` to test the
+plumbing anywhere.
 
 For a long-running worker, see `deploy/worker-intonation.service` and
 `deploy/worker-sgf.service` -- systemd units, so they survive reboots and network

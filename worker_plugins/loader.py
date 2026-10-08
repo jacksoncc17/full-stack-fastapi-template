@@ -3,10 +3,13 @@ Discover and load service plugins.
 
 Two sources, deliberately:
 
-1. the `worker_plugins` package this file lives in -- where the bundled `sgf_video`
-   lives, and what makes a new service simply "add a file here"
+1. the `worker_plugins` package this file lives in -- where `tarot_draw` lives, and what
+   makes a small bundled service simply "add a file here". Only single MODULES are
+   picked up from here, never packages
 2. any extra directories given with `--plugin-dir`, so a deployment can ship service
-   code separately from the worker without editing the repo
+   code separately from the worker without editing the repo. This is where the real
+   services live (`services/sgf_video/`, `services/intonationCheck/`), and it is the
+   only way to load one written as a package
 
 A plugin is a module whose name matches the service it implements, exposing either a
 plain class (instantiated with no arguments) or a `plugin(**kwargs)` factory (for one
@@ -105,8 +108,12 @@ def _candidates(directory: Path) -> list[tuple[str, Path]]:
 
     Only the package itself is imported, never the modules inside it: a package is
     imported by its own name, so its submodules reach each other with relative
-    imports. Importing `name/plugin.py` directly would put it at the top level and
+    imports. Importing `name/service.py` directly would put it at the top level and
     break those imports.
+
+    A package's implementation must NOT be a submodule called `plugin.py`: importing it
+    binds it to the package's own `plugin` attribute, which is the name the loader reads,
+    so the factory gets shadowed by the module. See services/sgf_video/__init__.py.
     """
     found: list[tuple[str, Path]] = []
     for path in sorted(directory.iterdir()):

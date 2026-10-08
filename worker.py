@@ -2,9 +2,9 @@
 """
 Worker loop: claim SGF video jobs from the broker and run the pipeline.
 
-This is the queue-facing half of the system. The pipeline half already exists in
-the toolkit (go_music_video.py); this process claims a job, materialises the SGF,
-invokes the pipeline, uploads the artifacts, and reports completion.
+This is the queue-facing half of the system. The pipeline lives with its service
+(services/sgf_video/); this process claims a job, materialises the SGF, invokes the
+pipeline through that service's plugin, uploads the artifacts, and reports completion.
 
 Design notes
 ------------
@@ -30,7 +30,7 @@ Usage
 -----
     export WORKER_KEY=...
     python3 worker.py --broker http://127.0.0.1:8000/api/v1 \
-        --toolkit /path/to/selfCommentary --once
+        --toolkit /path/to/selfCommentary/sgf_tools --once
 
     # see the queue plumbing without waiting on a real render
     python3 worker.py --broker ... --once --fake-pipeline
@@ -380,8 +380,12 @@ def main() -> int:
     ap.add_argument("--toolkit", type=Path,
                     default=Path(os.environ.get(
                         "TOOLKIT_DIR",
-                        "/home/wei/playground/goGames/selfCommentary")),
-                    help="passed to plugins that need it (the SGF pipeline does)")
+                        "/home/wei/playground/goGames/selfCommentary/sgf_tools")),
+                    help="the SGF toolkit directory holding the steps the sgf_video "
+                         "pipeline shares with non-service tools (remote_katago.py, "
+                         "sgf_animate.py). Only that service needs it. Use an ABSOLUTE "
+                         "path: a relative one is resolved against this worker's working "
+                         "directory, which is easy to get wrong")
     ap.add_argument("--service", default=None,
                     help="run only this service. Default: run every plugin found, "
                          "which is fine because a worker is bound to one service by "
