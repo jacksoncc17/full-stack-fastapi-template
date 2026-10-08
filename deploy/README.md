@@ -173,9 +173,12 @@ done
 Then on the LAN machine that can reach KataGo and ACE-Step:
 
 ```bash
-# sgf_video -- needs the toolkit (go_music_video.py), plus KataGo and ACE-Step
+# sgf_video -- toolkit venv; --toolkit names the checkout's sgf_tools/ (where
+# remote_katago.py and sgf_animate.py live); also needs KataGo and ACE-Step
 .venv/bin/python worker.py --broker https://<domain>/api/v1 --key <key-sgf> \
-  --name lan-sgf --service sgf_video --toolkit /path/to/selfCommentary
+  --name lan-sgf --service sgf_video \
+  --plugin-dir /path/to/selfCommentary/services \
+  --toolkit /path/to/selfCommentary/sgf_tools
 
 # intonationCheck -- needs the service venv; NO toolkit, KataGo or ACE-Step
 .venv-intonation/bin/python worker.py --broker https://<domain>/api/v1 \
@@ -188,12 +191,21 @@ Two details that are easy to get wrong:
 * **`--service` is not optional once a worker can see several plugins.** Without it the
   worker publishes every plugin it loaded and warns that the last one wins, which leaves
   it silently claiming only that service and quietly ignoring the rest of the queue.
+* **A service written as a package needs `--plugin-dir`.** The loader scans the bundled
+  `worker_plugins/` package for single *modules* only, so a service that is a directory
+  (`services/sgf_video/`, `services/intonationCheck/`) is invisible unless its parent
+  directory is passed. A missing `--plugin-dir` does not half-work: the worker starts with
+  whatever it could see and then refuses to run with
+  `error: --service 'sgf_video' is not among the loaded plugins: ['tarot_draw']`.
 * **Each worker needs the interpreter that has its own dependencies.** `intonationCheck`
   imports librosa, verovio, cairosvg and pymupdf, so it must run under
   `.venv-intonation/bin/python`; a bare `python3 worker.py` fails with
   `ModuleNotFoundError: No module named 'librosa'`. `sgf_video` needs the toolkit venv
   instead. The two services have deliberately different dependency sets, which is why
   they are separate processes rather than one worker with `--service` switched at runtime.
+  Because every worker in that directory loads *every* plugin it finds, an import at the
+  top of a service package runs under the other service's interpreter too -- keep heavy
+  imports inside `run()`, or the loader's fatal-on-error policy stops the wrong worker.
 
 Run each under `systemd` or `tmux` so it survives logout. Two ready-made units are
 provided because the services need **different interpreters** — `worker-intonation.service`

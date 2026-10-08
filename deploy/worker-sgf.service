@@ -8,9 +8,22 @@
 # worker that announces two services binds to whichever was published last and silently
 # ignores the rest of the queue.
 #
-# This service needs the TOOLKIT (go_music_video.py) in addition to the repo, plus a
-# reachable KataGo host and ACE-Step server. The intonationCheck worker needs none of
-# those -- see worker-intonation.service, which also uses a different interpreter.
+# This service needs --toolkit (the checkout's sgf_tools/ directory) in addition to the
+# repo, plus a reachable KataGo host and ACE-Step server. The pipeline itself now ships
+# inside services/sgf_video/, so --toolkit is not what finds go_music_video.py any more;
+# it is where the two steps that pipeline SHARES with tools that are not services live --
+# sgf_tools/remote_katago.py and sgf_tools/sgf_animate.py, which sit in the SGF toolkit
+# because go_tutor.py, make_variation_video.py and kata_review.py import them. The
+# intonationCheck worker needs none of this -- see worker-intonation.service, which also
+# uses a different interpreter.
+#
+# It also needs --plugin-dir now that the service lives in services/sgf_video/ instead
+# of in the worker's own worker_plugins/ package. The loader only scans worker_plugins/
+# for single MODULES, so a service written as a package is invisible unless its parent
+# directory is passed here. Without this the worker starts with only tarot_draw loaded
+# and then refuses to run -- loud, but total:
+#
+#     error: --service 'sgf_video' is not among the loaded plugins: ['tarot_draw']
 #
 # The interpreter must be the toolkit venv: this worker shells out to the toolkit, which
 # imports numpy, soundfile and Pillow. The system python3 has none of them.
@@ -29,7 +42,14 @@ WorkingDirectory=/home/wei/playground/goGames/selfCommentary/full-stack-fastapi-
 Environment=WORKER_KEY=REPLACE_ME
 Environment=BROKER_URL=https://broker.example.com/api/v1
 Environment=WORKER_NAME=lan-sgf
-Environment=TOOLKIT_DIR=/home/wei/playground/goGames/selfCommentary
+# The SGF toolkit directory. The pipeline ships inside services/sgf_video/, so this is not
+# what finds go_music_video.py -- it is where the two steps that pipeline shares with
+# non-service tools live (sgf_tools/remote_katago.py, sgf_tools/sgf_animate.py). Passed
+# through to the plugin as `--shared-dir`.
+Environment=TOOLKIT_DIR=/home/wei/playground/goGames/selfCommentary/sgf_tools
+# Where the service packages live: the PARENT of sgf_video/, not the service directory
+# itself.
+Environment=PLUGIN_DIR=/home/wei/playground/goGames/selfCommentary/services
 
 # Written out in full, not ${VAR}: systemd does not expand variables in the command
 # path, only in its arguments. Must be the toolkit venv, which carries numpy,
@@ -40,6 +60,7 @@ ExecStart=/home/wei/playground/goGames/selfCommentary/.venv/bin/python \
     --key ${WORKER_KEY} \
     --name ${WORKER_NAME} \
     --service sgf_video \
+    --plugin-dir ${PLUGIN_DIR} \
     --toolkit ${TOOLKIT_DIR}
 
 # A render holds a CPU for minutes. TimeoutStopSec has to exceed the longest job you

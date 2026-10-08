@@ -318,10 +318,13 @@ ${c_grn}==> deployed${c_off}  https://${DOMAIN_VAL}
 
   Then on the LAN machine, with the interpreter each service needs:
 
-    # sgf_video -- toolkit venv, plus KataGo and ACE-Step
+    # sgf_video -- toolkit venv. --toolkit names the checkout's sgf_tools/: the pipeline
+    # now ships in services/sgf_video/, so this is where the steps it shares with
+    # non-service tools live (remote_katago.py, sgf_animate.py). Plus KataGo/ACE-Step.
     .venv/bin/python worker.py --broker https://${DOMAIN_VAL}/api/v1 \\
       --key <key-sgf> --name lan-sgf --service sgf_video \\
-      --toolkit /path/to/selfCommentary
+      --plugin-dir /path/to/selfCommentary/services \\
+      --toolkit /path/to/selfCommentary/sgf_tools
 
     # intonationCheck -- its own venv; no toolkit, KataGo or ACE-Step
     .venv-intonation/bin/python worker.py --broker https://${DOMAIN_VAL}/api/v1 \\
