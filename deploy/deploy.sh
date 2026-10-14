@@ -267,7 +267,7 @@ else
 fi
 
 # ---------------------------------------------------------------- 5. build + up
-COMPOSE=(docker compose -f compose.yml -f compose.deploy.yml)
+COMPOSE=(docker compose -f compose.yml -f compose.deploy.yml -f ../note-seq/service/deploy/compose.note-seq.yml)
 
 say "starting the stack$( [ "$BUILD" = 1 ] && echo ' (building images -- first run takes several minutes)')"
 if [ "$DRY_RUN" = 1 ]; then
