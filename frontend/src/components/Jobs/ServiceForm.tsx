@@ -44,6 +44,11 @@ type Prop = {
   maxLength?: number
   minLength?: number
   format?: string
+  // `accept` is a rendering hint the broker's schema validator carries (see
+  // app/param_schema.py) and ServiceForm reads it below to offer the right file types.
+  // It was missing from this type, so `tsc` failed on the line that uses it -- and the
+  // build script is `tsc && vite build`, so the whole frontend build failed with it.
+  accept?: string
 }
 
 /** textarea for long strings, so a question is not a one-line box */
@@ -139,7 +144,7 @@ function Field({
         />
       ) : control === "files" ? (
         <Input
-          accept=".sgf,text/plain"
+          accept={prop.accept ?? ".sgf,.zip,text/plain"}
           id={id}
           multiple
           onChange={(e) => onChange(e.target.files)}

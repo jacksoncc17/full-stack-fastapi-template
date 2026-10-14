@@ -33,11 +33,13 @@ SUPPORTED_KEYWORDS = {
     "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
     "minLength", "maxLength", "pattern", "items", "minItems", "maxItems",
     "anyOf", "oneOf", "allOf", "default", "title", "description",
-    # `format` is a RENDERING HINT, not validation: it tells the form which widget
-    # to use ("sgf_files" -> a file picker, "slider" -> a range input). It carries no
-    # semantics here on purpose, so a frontend that does not know a format can fall
-    # back to a plain control instead of failing.
+    # `format` and `accept` are RENDERING HINTS, not validation: they tell the form
+    # which widget to use ("files" -> a file picker) and what to offer in it
+    # (".sgf,.zip"). They carry no semantics here on purpose, so a frontend that does
+    # not understand a hint can fall back to a plain control instead of failing, and
+    # the broker never accepts or rejects a submission because of one.
     "format",
+    "accept",
 }
 IGNORED_KEYWORDS = {"title", "description", "examples", "$schema", "$id"}
 

@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createFileRoute, Link as RouterLink } from "@tanstack/react-router"
-import { Download, Loader2, RefreshCw, TriangleAlert } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react"
 
 import { JobsService } from "@/client"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +41,58 @@ const STATUS_STYLES: Record<string, string> = {
  */
 function ArtifactLink({ jobId, artifact }: { jobId: string; artifact: any }) {
   const [busy, setBusy] = useState(false)
+  const [href, setHref] = useState<string | null>(null)
   const { showErrorToast } = useCustomToast()
+
+  // An artifact is bytes, so most of them are downloads -- but some results ARE a place
+  // to go, and downloading a text file to read a URL out of it is a poor way to offer
+  // one. A `text/uri-list` artifact says so in its mime type (the standard type for a
+  // list of URIs; the extension that produces it is `.uri`), which is a property of the
+  // artifact rather than of any one service, so this rule needs no knowledge of who
+  // produced it. The kind ends in `_url` in the same spirit, for a worker whose
+  // `mimetypes` database is older than the extension.
+  const isUriList =
+    artifact.mime_type === "text/uri-list" ||
+    (typeof artifact.kind === "string" && artifact.kind.endsWith("_url"))
+
+  useEffect(() => {
+    if (!isUriList) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await JobsService.downloadArtifact({
+          path: { job_id: jobId, artifact_id: artifact.id },
+          // the same authenticated fetch as the download, read as text
+          responseType: "text",
+        })
+        // The first URL anywhere in it: a uri-list has it on the first line, and a
+        // plain text file is allowed to say a sentence first.
+        const raw = typeof res.data === "string" ? res.data : await (res.data as Blob).text()
+        const uri = raw.match(/https?:\/\/[^\s"'<>]+/)?.[0]
+        if (!cancelled && uri) setHref(uri)
+      } catch {
+        // unreadable as text is still a file: fall through to the download button
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [artifact.id, isUriList, jobId])
+
+  if (href) {
+    return (
+      <a
+        className="text-primary flex items-center gap-1 text-xs hover:underline"
+        href={href}
+        rel="noreferrer"
+        target="_blank"
+        title={href}
+      >
+        <ExternalLink className="h-3 w-3" />
+        {artifact.kind} · open
+      </a>
+    )
+  }
 
   const download = async () => {
     setBusy(true)
@@ -74,6 +133,70 @@ function ArtifactLink({ jobId, artifact }: { jobId: string; artifact: any }) {
       )}
       {artifact.kind} · {(artifact.bytes / 1e6).toFixed(1)} MB
     </button>
+  )
+}
+
+/**
+ * The job's progress log, which is what the events endpoint is for.
+ *
+ * `JobEvent`'s own docstring calls this "append-only progress log, which is what drives
+ * the dashboard timeline" -- the endpoint and the generated client call were both there,
+ * and no page used them. A worker's progress messages often say the useful things: which
+ * step is running, what a measurement came out as, and where the result can be found, so
+ * any URL in one is turned into a link. It is fetched only when a row is opened, so
+ * polling the queue does not multiply by the number of rows.
+ */
+function JobTimeline({ jobId }: { jobId: string }) {
+  const { data } = useQuery({
+    queryFn: async () =>
+      (await JobsService.readJobEvents({ path: { job_id: jobId } })).data as any[],
+    queryKey: ["jobs", jobId, "events"],
+    refetchInterval: 5000,
+  })
+  const events = data ?? []
+  if (events.length === 0) {
+    return <p className="text-muted-foreground text-xs">no progress messages yet</p>
+  }
+  return (
+    <ol className="flex flex-col gap-1">
+      {events.map((event: any) => (
+        <li className="flex items-start gap-2 text-xs" key={event.id}>
+          <span className="text-muted-foreground w-16 shrink-0 tabular-nums">
+            {event.at ? new Date(event.at).toLocaleTimeString() : "--:--:--"}
+          </span>
+          <span
+            className={event.level === "error" ? "text-destructive" : undefined}
+          >
+            {linkify(event.message)}
+          </span>
+          {typeof event.progress === "number" ? (
+            <span className="text-muted-foreground shrink-0 tabular-nums">
+              {event.progress}%
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** A message with its URLs turned into links, so "the page is at http://…" is usable. */
+function linkify(message: string) {
+  const parts = String(message).split(/(https?:\/\/[^\s]+)/g)
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <a
+        className="text-primary underline underline-offset-2"
+        href={part}
+        key={`${part}-${index}`}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
   )
 }
 
@@ -240,6 +363,7 @@ function JobsDashboard() {
 
 function JobRow({ job, onCancel }: { job: any; onCancel: () => void }) {
   const done = ["succeeded", "failed", "canceled"].includes(job.status)
+  const [open, setOpen] = useState(false)
   const { data: artifacts } = useQuery({
     // only fetch artifacts once there could be some
     enabled: job.status === "succeeded",
@@ -249,6 +373,7 @@ function JobRow({ job, onCancel }: { job: any; onCancel: () => void }) {
   })
 
   return (
+    <>
     <tr className="border-t">
       <td className="p-3">
         <div className="font-medium">{job.title || job.sgf_name}</div>
@@ -290,12 +415,35 @@ function JobRow({ job, onCancel }: { job: any; onCancel: () => void }) {
         </div>
       </td>
       <td className="p-3 text-right">
-        {!done ? (
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            Cancel
+        <div className="flex items-center justify-end gap-1">
+          {!done ? (
+            <Button variant="outline" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+          ) : null}
+          <Button
+            aria-expanded={open}
+            size="sm"
+            title="progress log"
+            variant="ghost"
+            onClick={() => setOpen((was) => !was)}
+          >
+            {open ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
           </Button>
-        ) : null}
+        </div>
       </td>
     </tr>
+    {open ? (
+      <tr className="bg-muted/30 border-t">
+        <td className="p-3" colSpan={6}>
+          <JobTimeline jobId={job.id} />
+        </td>
+      </tr>
+    ) : null}
+    </>
   )
 }

@@ -79,6 +79,33 @@ def _validate_sgf(text: str) -> None:
         raise HTTPException(status_code=413, detail="SGF is too large")
 
 
+def _is_bundle(filename: str | None) -> bool:
+    """True when a submission's file is a .zip rather than raw SGF text.
+
+    The SGF service takes either a bare SGF or a bundle holding the SGF plus the
+    variation diagrams to show after the game. A bundle's bytes are not SGF text --
+    they are a zip archive -- so the text check below cannot judge one, and must not
+    be applied to it. The service unpacks and parses it properly.
+    """
+    return bool(filename) and filename.lower().endswith(".zip")
+
+
+def _check_sgf_submission(service: str, sgf_text: str, filename: str | None) -> None:
+    """Run the SGF text check, where it is meaningful.
+
+    ONE place decides this, because the check is reached by more than one path: the
+    JSON route (`POST /jobs/`), the generic multipart route (`POST /jobs/submit`, which
+    reuses the JSON route's function) and the legacy upload route. Having the rule in
+    the reused function and again in its caller is how a bundle got past one check only
+    to be rejected by the other, with an error about the file not starting with "(;".
+    """
+    if service != DEFAULT_SERVICE:
+        return
+    if _is_bundle(filename):
+        return
+    _validate_sgf(sgf_text)
+
+
 def _own_job(session: SessionDep, user: CurrentUser, job_id: uuid.UUID) -> Job:
     job = session.get(Job, job_id)
     if job is None:
@@ -135,8 +162,7 @@ def submit_job(
     """Queue a new job."""
     # SGF validation only applies to the service that consumes an SGF. A new service
     # must not be forced through it, or the plugin point is not real.
-    if job_in.service == DEFAULT_SERVICE:
-        _validate_sgf(job_in.sgf_text)
+    _check_sgf_submission(job_in.service, job_in.sgf_text, job_in.sgf_name)
     params = _params_for(job_in, session)
     svc = session.get(Service, job_in.service)
     job = Job(
@@ -224,14 +250,17 @@ async def submit_job_generic(
         parsed[name] = (existing or []) + [filename] if isinstance(existing, list) \
             else [filename]
 
-    # SGF validation is a property of the SGF service, not of submission
+    # SGF validation is a property of the SGF service, not of submission, and a .zip
+    # bundle is exempt -- see _check_sgf_submission, which owns that rule for every
+    # path that reaches it. The text has to be read here rather than left to the inner
+    # route because that route only ever receives what this one hands it.
     sgf_text = ""
-    if service == DEFAULT_SERVICE:
+    if service == DEFAULT_SERVICE and not _is_bundle(
+            files[0].filename if files else None):
         for f in files:
             body = (await f.read()).decode("utf-8", errors="replace")
             sgf_text = sgf_text or body
             await f.seek(0)
-        _validate_sgf(sgf_text)
 
     job_in = JobCreate(service=service, params=parsed, sgf_text=sgf_text,
                        sgf_name=(files[0].filename if files else "input.txt") or "input.txt")
