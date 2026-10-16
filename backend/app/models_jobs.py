@@ -427,6 +427,13 @@ class JobClaimed(SQLModel):
     lease_expires_at: datetime
     attempts: int
 
+    # `owner_id` is the account that submitted the job. It is here because a plugin may
+    # produce something a *person* keeps -- note_seq_align publishes a score page -- and
+    # the worker is the last place that knows whose it is before the plugin runs. Without
+    # it the artifact belongs to nobody, which is how a page ends up showing everybody
+    # everybody's pieces.
+    owner_id: uuid.UUID | None = None
+
     # `service` decides which plugin the worker dispatches to, and `params` is what
     # that plugin reads. Without these the worker cannot tell one job from another
     # and would have to guess.

@@ -327,6 +327,12 @@ def process_one(broker: Broker, plugin, claimed: dict, lease_seconds: int,
                                progress, staged)
         else:
             params = dict(claimed.get("params") or {})
+            # Whose job this is. A plugin that keeps what it produced -- note_seq_align
+            # publishes a score page for the person who asked -- needs it, and the params
+            # are the only channel: same place `_extra_args` already goes, and a key the
+            # plugin may ignore like any other.
+            if claimed.get("owner_id"):
+                params.setdefault("owner_id", str(claimed["owner_id"]))
             if extra:
                 # pass-through flags only make sense for the pipeline; keep them
                 # available to plugins that want them

@@ -77,6 +77,7 @@ def _claimed(session: Session, job) -> JobClaimed:
     ).all()) if job.id else []
     return JobClaimed(
         job_id=job.id,
+        owner_id=job.owner_id,
         inputs=input_names,
         lease_token=job.lease_token,
         lease_expires_at=job.lease_expires_at,
