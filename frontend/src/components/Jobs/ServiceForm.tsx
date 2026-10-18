@@ -259,6 +259,16 @@ export function ServiceForm({ service, onDone }: { service: string; onDone: () =
         // the files travel as multipart parts, not inside the params JSON
         delete params[name]
       }
+      // An optional field left untouched arrives as "" -- `initial` returns that for any
+      // control without a default -- and the broker validates the schema it was given, so
+      // `first_bar: ""` against `type: integer` is a 422 saying "expected integer". The fix
+      // belongs here rather than in each service's schema: an optional field nobody filled
+      // in should not be sent at all, which is true of every optional field of every
+      // service. Required fields keep their empty value on purpose, so the broker still
+      // says which one is missing.
+      for (const name of Object.keys(params)) {
+        if (params[name] === "" && !required.has(name)) delete params[name]
+      }
       // the generated client applies the multipart serializer, so the body is the
       // fields themselves rather than hand-built FormData. file_fields is one name
       // per file, positionally, so the broker can put each part on its own field.
