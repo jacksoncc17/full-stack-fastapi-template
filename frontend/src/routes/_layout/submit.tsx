@@ -74,7 +74,16 @@ function SubmitJob() {
               </SelectTrigger>
               <SelectContent>
                 {services.map((s: any) => (
-                  <SelectItem key={s.name} value={s.name}>
+                  // `title` is the service's own one-line description, which the worker
+                  // publishes at startup (the first line of its plugin's docstring) and the
+                  // broker stores in the contract. It belongs on the *item* rather than in
+                  // its text: Radix mirrors an item's text into the closed trigger, so a
+                  // second line here would also appear in the box after you pick it.
+                  <SelectItem
+                    key={s.name}
+                    value={s.name}
+                    title={s.description ?? undefined}
+                  >
                     {s.title}
                     {s.param_schema ? "" : "  (no worker schema)"}
                   </SelectItem>
