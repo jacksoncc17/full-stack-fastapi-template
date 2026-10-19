@@ -127,11 +127,17 @@ def list_services(*, session: Session) -> list[Service]:
 
 
 def touch_worker(
-    *, session: Session, worker: Worker, capabilities: dict | None = None
+    *, session: Session, worker: Worker, status: dict | None = None
 ) -> Worker:
+    """Record a heartbeat: when it happened, and what the worker says it is doing.
+
+    `status` replaces the previous report rather than merging into it, because it is a
+    report: a counter the worker stops sending should stop being displayed. What the
+    worker *can* do lives in `capabilities` and is written only by `register_worker`.
+    """
     worker.last_heartbeat_at = get_datetime_utc()
-    if capabilities is not None:
-        worker.capabilities = capabilities
+    if status is not None:
+        worker.status = status
     session.add(worker)
     session.commit()
     session.refresh(worker)

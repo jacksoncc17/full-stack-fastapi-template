@@ -236,7 +236,12 @@ def heartbeat(
     session: SessionDep, worker: CurrentWorker, body: WorkerHeartbeat | None = None
 ) -> Any:
     body = body or WorkerHeartbeat()
-    cj.touch_worker(session=session, worker=worker, capabilities=body.capabilities)
+    # A worker built before the split posts its report under `capabilities`. Reading it as
+    # status is what keeps that worker working against this broker; deliberately NOT
+    # writing it into `capabilities`, which is the admin's declaration and must survive
+    # every beat.
+    status = body.status if body.status is not None else body.capabilities
+    cj.touch_worker(session=session, worker=worker, status=status)
     return {"worker": worker.name, "ok": True}
 
 

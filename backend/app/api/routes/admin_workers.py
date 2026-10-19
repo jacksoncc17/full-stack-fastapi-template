@@ -69,6 +69,7 @@ def read_workers_detail(session: SessionDep, _admin: SuperUser) -> Any:
         out.append({
             "id": str(w.id), "name": w.name, "is_active": w.is_active,
             "capabilities": w.capabilities,
+            "status": w.status,
             "last_heartbeat_at": hb.isoformat() if hb else None,
             "seconds_since_heartbeat": int((now - hb).total_seconds()) if hb else None,
             "online": online,

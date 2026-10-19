@@ -155,9 +155,10 @@ class Broker:
             {"worker_name": worker_name, "lease_seconds": lease_seconds},
         )
 
-    def heartbeat(self, capabilities=None):
+    def heartbeat(self, status=None):
+        """Report what this worker is doing. Replaces the previous report on the broker."""
         return self._request("POST", "/worker/heartbeat",
-                             {"capabilities": capabilities or {}})
+                             {"status": status or {}})
 
     def publish_service(self, *, name, title, description=None,
                         param_schema=None, artifact_kinds=None, version="1"):
@@ -443,9 +444,14 @@ def main() -> int:
     signal.signal(signal.SIGINT, lambda *_: STOP.set())
     signal.signal(signal.SIGTERM, lambda *_: STOP.set())
 
+    # One report, sent unchanged with every beat. The broker replaces its stored status
+    # rather than merging, so a beat that mentioned only some keys would erase the others.
+    status = {"service": args.service,
+              "plugins": sorted(plugins),
+              "toolkit": str(args.toolkit) if args.toolkit else None,
+              "fake": args.fake_pipeline}
     try:
-        broker.heartbeat({"toolkit": str(args.toolkit),
-                          "fake": args.fake_pipeline})
+        broker.heartbeat(status)
     except BrokerError as e:
         # A single failed heartbeat at startup is not proof the broker is gone
         # (a restarting API is the common case), so warn and let the claim loop
@@ -522,7 +528,7 @@ def main() -> int:
                     args.fake_pipeline, list(args.extra_arg))
         processed += 1
         try:
-            broker.heartbeat({"processed": processed})
+            broker.heartbeat({**status, "processed": processed})
         except BrokerError:
             pass
         if args.once or (args.max_jobs and processed >= args.max_jobs):

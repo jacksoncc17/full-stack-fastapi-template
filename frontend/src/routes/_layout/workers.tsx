@@ -111,6 +111,7 @@ function WorkersPage() {
                 <th className="p-3 text-left font-medium">State</th>
                 <th className="p-3 text-left font-medium">Last heartbeat</th>
                 <th className="p-3 text-left font-medium">Capabilities</th>
+                <th className="p-3 text-left font-medium">Status</th>
                 <th className="p-3" />
               </tr>
             </thead>
@@ -132,6 +133,9 @@ function WorkersPage() {
                   </td>
                   <td className="text-muted-foreground p-3 font-mono text-xs">
                     {w.capabilities ? JSON.stringify(w.capabilities) : "—"}
+                  </td>
+                  <td className="text-muted-foreground p-3 font-mono text-xs">
+                    {w.status ? JSON.stringify(w.status) : "—"}
                   </td>
                   <td className="p-3 text-right">
                     <Button

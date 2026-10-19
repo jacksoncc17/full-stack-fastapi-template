@@ -118,6 +118,13 @@ class Worker(SQLModel, table=True):
     `capabilities` is free-form JSON so a worker can advertise what it supports
     (e.g. {"formats": ["mp4", "webp"], "has_katago": true}) without a schema
     change. `api_key_hash` is a hash, never the key itself.
+
+    `status` is the other half, and it used to be the same column. Capabilities are
+    *declared* -- by the admin when it registers the worker -- and answer "can this node
+    do X?". Status is *reported*, replaced on every heartbeat, and answers "what is this
+    node doing right now?" (counters, a toolkit path, the plugins it loaded). Writing
+    both through one field is what made the admin page print `{"processed": 3}` under a
+    column headed "Capabilities".
     """
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -127,6 +134,10 @@ class Worker(SQLModel, table=True):
     # column ("cannot adapt type 'dict'"), which surfaced as a 500 on the
     # worker heartbeat the first time a worker reported its capabilities.
     capabilities: dict | None = Field(default=None, sa_column=Column(JSON))
+    # What the worker last said it was doing. Replaced wholesale, not merged: it is a
+    # report, so a key the worker stops mentioning disappears from the page rather than
+    # lingering as a stale fact.
+    status: dict | None = Field(default=None, sa_column=Column(JSON))
     is_active: bool = True
     last_heartbeat_at: datetime | None = Field(
         default=None, sa_type=DateTime(timezone=True)  # type: ignore
@@ -509,7 +520,16 @@ class ServicesPublic(SQLModel):
 
 
 class WorkerHeartbeat(SQLModel):
-    capabilities: dict | None = None
+    """What a worker reports it is doing, on every beat.
+
+    `capabilities` survives only for workers older than this split: they post their
+    report under that name, and the route reads it as status. It is never written to the
+    `capabilities` column -- that is a declaration, and a heartbeat must not overwrite
+    what an admin declared.
+    """
+
+    status: dict | None = None
+    capabilities: dict | None = None      # legacy spelling of `status`
 
 
 # ---- admin-facing payloads --------------------------------------------------
@@ -543,6 +563,7 @@ class WorkerPublic(SQLModel):
     id: uuid.UUID
     name: str
     capabilities: dict | None = None
+    status: dict | None = None
     is_active: bool
     last_heartbeat_at: datetime | None = None
     created_at: datetime | None = None
