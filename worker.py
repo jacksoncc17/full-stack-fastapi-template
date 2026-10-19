@@ -59,6 +59,13 @@ from worker_plugins.loader import describe, load_plugins
 
 STOP = threading.Event()
 
+# The SGF toolkit the sgf_video plugin shares with its non-service tools. `--toolkit`
+# defaults to it so a worker started without the flag still finds its scripts -- which is
+# also why the status report below treats this value as "unchanged" rather than as news:
+# it is a path on whichever machine runs the worker, meaningless to any other service.
+DEFAULT_TOOLKIT = Path(os.environ.get(
+    "TOOLKIT_DIR", "/home/wei/playground/goGames/selfCommentary/sgf_tools"))
+
 # The worker is deliberately service-agnostic: it stages input, dispatches to a
 # plugin, uploads whatever the plugin returns, and reports. Everything service
 # specific -- which script to run, which flags, which file is which artifact kind --
@@ -385,9 +392,7 @@ def main() -> int:
     ap.add_argument("--key", default=os.environ.get("WORKER_KEY"))
     ap.add_argument("--name", default=os.environ.get("WORKER_NAME", "worker-1"))
     ap.add_argument("--toolkit", type=Path,
-                    default=Path(os.environ.get(
-                        "TOOLKIT_DIR",
-                        "/home/wei/playground/goGames/selfCommentary/sgf_tools")),
+                    default=DEFAULT_TOOLKIT,
                     help="the SGF toolkit directory holding the steps the sgf_video "
                          "pipeline shares with non-service tools (remote_katago.py, "
                          "sgf_animate.py). Only that service needs it. Use an ABSOLUTE "
@@ -448,7 +453,8 @@ def main() -> int:
     # rather than merging, so a beat that mentioned only some keys would erase the others.
     status = {"service": args.service,
               "plugins": sorted(plugins),
-              "toolkit": str(args.toolkit) if args.toolkit else None,
+              "toolkit": (str(args.toolkit)
+                          if Path(args.toolkit) != DEFAULT_TOOLKIT else None),
               "fake": args.fake_pipeline}
     try:
         broker.heartbeat(status)
